@@ -8,13 +8,14 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import config
 from app.db import get_session
 from app.errors import fail
+from app.i18n import t
 from app.models import Session, User, utcnow
 
 TOKEN_PREFIX = "iz1_"
@@ -90,7 +91,7 @@ async def onboarded_user(request: Request, db: AsyncSession = Depends(get_sessio
     """Profilini to'ldirgan foydalanuvchi. Aks holda 403 (ilova onboarding'ni ko'rsatadi)."""
     user = await _resolve(request, db)
     if not user.onboarded:
-        fail(403, "onboarding_required")
+        raise HTTPException(403, detail=t("onboarding_required"), headers={"X-Onboarding-Required": "1"})
     return user
 
 
