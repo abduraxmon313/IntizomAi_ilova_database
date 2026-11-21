@@ -41,7 +41,7 @@ kerak, 403 ruxsat yo'q yoki onboarding kerak, 409 hozir mumkin emas, 422 noto'g'
 | Reja | `GET /plans?date_from&date_to`, `POST /plans`, `PUT/DELETE /plans/{id}` |
 | Odat | `GET/POST /habits`, `PUT/DELETE /habits/{id}`, `POST /habits/{id}/toggle {done?, date?}` |
 | Maqsad | `GET/POST /goals`, `PUT/DELETE /goals/{id}` |
-| Statistika | `GET /stats`, `GET /leaderboard?period=all|week|streak`, `GET/POST /checkin` |
+| Statistika | `GET /stats`, `GET /stats/activity?days=98`, `GET /leaderboard?period=all|week|streak`, `GET/POST /checkin` |
 | AI | `POST /ai/chat {messages}` |
 | Guruhlar | `GET/POST /groups`, `GET/PATCH/DELETE /groups/{id}`, `POST /groups/{id}/leave`, `POST /groups/{id}/transfer`, `POST /groups/{id}/invites {username}`, `DELETE /groups/{id}/invites/{invite_id}`, `GET /groups/{id}/members/{uid}?date=`, `DELETE /groups/{id}/members/{uid}`, `PUT /groups/{id}/members/{uid}/active`, `GET /groups/{id}/permissions`, `PUT /groups/{id}/permissions/{uid}`, `POST /groups/{id}/members/{uid}/plans`, `POST /groups/{id}/members/{uid}/habits` |
 | Takliflar | `GET /invites`, `POST /invites/{id}/accept`, `POST /invites/{id}/decline {block}`, `GET /blocks`, `DELETE /blocks/{uid}` |
@@ -49,6 +49,21 @@ kerak, 403 ruxsat yo'q yoki onboarding kerak, 409 hozir mumkin emas, 422 noto'g'
 | Ichki | `POST /internal/billing/callback` (faqat bot backend, HMAC imzo) |
 
 Brauzer sahifalari: `/privacy`, `/pay/return`, `/i/{username}` (taklif havolasi), `/health`.
+
+### Intizom bali (0–100)
+
+Oxirgi 30 kun bo'yicha, har `GET /stats` so'rovida joriy holatdan hisoblanadi:
+
+- **Kerakli ishlar** — bajarilgan har bir reja/odat, kuni o'tib ketgan bajarilmagan reja/odat
+  va "bajarilmadi" deb belgilangan reja. Bugungi bajarilmagan ish hali o'tkazib yuborilgan
+  hisoblanmaydi. O'chirilgan (arxivlangan) odatning o'chirilgan kungacha bo'lgan kunlari qoladi.
+- **Formula**: `bajarilish × 50 + seriya/30 × 25 + 7 kundagi ishlar/21 × 15 + so'nggi faollik × 10`.
+- **Boshlang'ich 50**: kerakli ish yo'q bo'lsa ball 50. Dastlabki 5 ta kerakli ishgacha natija 50
+  bilan aralashtiriladi, shuning uchun bitta ish ballni keskin sakratmaydi. Hamma ish o'chirilsa,
+  ball yana 50 ga qaytadi.
+
+Rekord seriya va "mukammal kunlar" ham haqiqiy kunlardan hisoblanadi: belgilab-bekor qilish
+ularni sun'iy oshirmaydi.
 
 ## Railway'ga joylash
 

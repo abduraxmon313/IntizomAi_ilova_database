@@ -156,9 +156,19 @@ async def username_available(
     u = normalize_username(username)
     problem = username_problem(u)
     if problem:
-        return {"username": u, "available": False, "reason": t(problem)}
+        return {
+            "username": u,
+            "available": False,
+            "reason": t(problem),
+            "suggestions": await users.suggest_usernames(db, u),
+        }
     taken = await username_taken(db, u, except_user_id=user.id)
-    return {"username": u, "available": not taken, "reason": t("username_taken") if taken else None}
+    return {
+        "username": u,
+        "available": not taken,
+        "reason": t("username_taken") if taken else None,
+        "suggestions": await users.suggest_usernames(db, u) if taken else [],
+    }
 
 
 @router.get("/users/lookup")

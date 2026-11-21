@@ -164,6 +164,9 @@ class Habit(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # O'chirilgan odat arxivlanadi — tarix va ballar saqlanadi.
     archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Arxivlangan kun (TIMEZONE bo'yicha). Shu kungacha o'tkazib yuborilgan kunlar
+    # intizom balida qoladi — odatni o'chirib, "qarzni" yo'qotib bo'lmaydi.
+    archived_on: Mapped[date | None] = mapped_column(Date)
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
 
