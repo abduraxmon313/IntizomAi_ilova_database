@@ -139,6 +139,8 @@ async def my_invites(user: User = Depends(onboarded_user), db: AsyncSession = De
 
 @router.post("/invites/{invite_id}/accept")
 async def accept_invite(invite_id: int, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
+    if rs.get("GROUP_JOIN_PREMIUM_ONLY") and not premium.is_premium(user):
+        fail(402, "group_join_premium")
     return await svc.accept_invite(db, user, invite_id)
 
 
