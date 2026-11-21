@@ -106,5 +106,7 @@ async def delete_habit(habit_id: int, user: User = Depends(onboarded_user), db: 
     # Arxivlanadi: tarix, ball va seriya saqlanadi.
     h = await _own(db, user, habit_id)
     h.archived = True
+    h.archived_on = today()
     await db.commit()
+    await gamification.recompute(db, user)
     return {"ok": True}

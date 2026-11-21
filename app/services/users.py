@@ -42,6 +42,29 @@ async def username_taken(db: AsyncSession, u: str, except_user_id: int | None = 
     return bool(await db.scalar(q))
 
 
+async def suggest_usernames(db: AsyncSession, raw: str, limit: int = 3) -> list[str]:
+    """Band yoki yaroqsiz username o'rniga bo'sh variantlar (onboarding'da bir bosishda tanlash uchun)."""
+    base = re.sub(r"[^a-z0-9_]+", "", normalize_username(raw))
+    base = re.sub(r"_+", "_", base).strip("_")
+    if base.startswith("intizom"):
+        base = base[len("intizom"):].strip("_")
+    if not base or not base[0].isalpha():
+        base = "user" + base
+    base = base[:15].rstrip("_")
+    pool: list[str] = [base] if len(base) >= 3 else []
+    for suffix in ("_uz", str(today().year % 100)):
+        pool.append(f"{base}{suffix}")
+    while len(pool) < 12:
+        pool.append(f"{base}{secrets.randbelow(900) + 100}")
+    pool = [u for u in dict.fromkeys(pool) if username_problem(u) is None]
+    if not pool:
+        return []
+    taken = set(
+        (await db.execute(select(func.lower(User.username)).where(func.lower(User.username).in_(pool)))).scalars()
+    )
+    return [u for u in pool if u not in taken][:limit]
+
+
 def clean_name(raw: str | None) -> str | None:
     name = " ".join((raw or "").split())
     if not (2 <= len(name) <= 60):

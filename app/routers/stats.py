@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -28,6 +28,15 @@ class CheckinIn(BaseModel):
 @router.get("/stats")
 async def stats(user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
     return await gamification.snapshot(db, user, premium.is_premium(user))
+
+
+@router.get("/stats/activity")
+async def stats_activity(
+    days: int = Query(default=98, ge=1, le=gamification.ACTIVITY_MAX_DAYS),
+    user: User = Depends(onboarded_user),
+    db: AsyncSession = Depends(get_session),
+):
+    return await gamification.activity(db, user, days)
 
 
 _LB = {"all": User.total_score, "week": User.weekly_xp, "streak": User.streak}

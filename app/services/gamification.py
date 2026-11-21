@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import config
 from app.models import Achievement, Habit, HabitLog, Plan, StreakFreezeDay, User
 from app.services import habits as habit_rules
-from app.services.clock import now_local, time_reached, today
+from app.services.clock import now_local, today
 
 STREAK_WINDOW_DAYS = 1000
 
@@ -122,6 +122,16 @@ async def _frozen_days(db: AsyncSession, user_id: int, since: date) -> set[date]
     return {d for (d,) in rows.all()}
 
 
+def _longest_run(days: set[date], d0: date) -> int:
+    best = run = 0
+    prev: date | None = None
+    for d in sorted(x for x in days if x <= d0):
+        run = run + 1 if prev is not None and d - prev == timedelta(days=1) else 1
+        best = max(best, run)
+        prev = d
+    return best
+
+
 def _streak_from(days: set[date], d0: date) -> int:
     start = d0 if d0 in days else d0 - timedelta(days=1)
     if start not in days:
@@ -152,55 +162,115 @@ async def _done_count(db: AsyncSession, user_id: int) -> int:
 
 
 # ─────────────────────────────────────────────────────────────
-#  Intizom bali (0..100) — botdagi formula
+#  Kunlik hisob: har kuni nechta ish "kerak edi" va nechtasi bajarildi
 # ─────────────────────────────────────────────────────────────
-async def discipline_score(db: AsyncSession, user: User) -> int:
+@dataclass
+class DayStat:
+    plans_done: int = 0
+    plans_due: int = 0
+    habits_done: int = 0
+    habits_due: int = 0
+
+    @property
+    def done(self) -> int:
+        return self.plans_done + self.habits_done
+
+    @property
+    def due(self) -> int:
+        return self.plans_due + self.habits_due
+
+
+def _habit_missable(h: Habit, d: date) -> bool:
+    """`d` kuni bajarilmagan bo'lsa, o'tkazib yuborilgan deb hisoblanadimi."""
+    if not habit_rules.is_due_on(h, d):
+        return False
+    if h.archived:
+        # Arxivlangan kundan boshlab — talab yo'q. Eski (sanasiz) arxivlar — umuman yo'q.
+        return h.archived_on is not None and d < h.archived_on
+    return True
+
+
+async def day_ledger(db: AsyncSession, user_id: int, start: date, end: date) -> dict[date, DayStat]:
+    """[start, end] (end ≤ bugun) oralig'idagi har kun uchun reja/odat hisobi.
+
+    Qoidalar (botdagi bilan bir xil ruh, lekin adolatliroq):
+      • bajarilgan ish — har doim "kerak" va "bajarildi";
+      • bajarilmagan reja/odat — faqat kun TUGAGANDAN keyin o'tkazib yuborilgan
+        hisoblanadi (bugun hali vaqt bor); reja "failed" deb belgilansa — darhol;
+      • arxivlangan odat — arxivlangan kungacha bo'lgan kunlar hisobda qoladi.
+    """
     d0 = today()
-    window_start = d0 - timedelta(days=29)
-    last7 = d0 - timedelta(days=6)
-    total = done = last7_done = 0
+    end = min(end, d0)
+    out: dict[date, DayStat] = {}
+    if end < start:
+        return out
+    d = start
+    while d <= end:
+        out[d] = DayStat()
+        d += timedelta(days=1)
 
     plans = (
         await db.execute(
-            select(Plan.plan_date, Plan.status, Plan.scheduled_time).where(
-                Plan.user_id == user.id, Plan.plan_date >= window_start, Plan.plan_date <= d0
+            select(Plan.plan_date, Plan.status).where(
+                Plan.user_id == user_id, Plan.plan_date >= start, Plan.plan_date <= end
             )
         )
     ).all()
-    for pdate, status, stime in plans:
+    for pdate, status in plans:
+        s = out[pdate]
         if status == "done":
-            total += 1
-            done += 1
-            last7_done += pdate >= last7
-        elif pdate < d0 or (pdate == d0 and time_reached(stime)):
-            total += 1
+            s.plans_done += 1
+            s.plans_due += 1
+        elif status == "failed" or pdate < d0:
+            s.plans_due += 1
 
-    habits = list((await db.execute(select(Habit).where(Habit.user_id == user.id))).scalars())
+    habits = list((await db.execute(select(Habit).where(Habit.user_id == user_id))).scalars())
     if habits:
-        logs = await habit_rules.log_dates(db, [h.id for h in habits], window_start)
+        logs = await habit_rules.log_dates(db, [h.id for h in habits], start)
         for h in habits:
             hl = logs.get(h.id, set())
-            for i in range(30):
-                d = window_start + timedelta(days=i)
+            for d, s in out.items():
                 if d in hl:
-                    total += 1
-                    done += 1
-                    last7_done += d >= last7
-                    continue
-                if h.archived or not habit_rules.is_due_on(h, d):
-                    continue
-                if d < d0 or (d == d0 and time_reached(h.reminder_time)):
-                    total += 1
+                    s.habits_done += 1
+                    s.habits_due += 1
+                elif d < d0 and _habit_missable(h, d):
+                    s.habits_due += 1
+    return out
 
-    completion = done / total if total else 0.0
-    streak_norm = min(1.0, (user.streak or 0) / 30.0)
+
+# ─────────────────────────────────────────────────────────────
+#  Intizom bali (0..100)
+# ─────────────────────────────────────────────────────────────
+DISCIPLINE_BASELINE = 50
+# Shuncha "kerakli ish" yig'ilgach, ball to'liq formulaga o'tadi. Undan oldin
+# boshlang'ich 50 bilan aralashtiriladi — 1 ta ish ballni 50 → 0 yoki 50 → 100 ga
+# sakratmaydi, reja o'chirilsa esa ball yana boshlang'ich holatga qaytadi.
+DISCIPLINE_CONFIDENCE_ITEMS = 5
+
+
+def discipline_from(
+    total: int, done: int, last7_done: int, streak: int, last_completed: date | None, d0: date
+) -> int:
+    if total <= 0:
+        return DISCIPLINE_BASELINE
+    completion = done / total
+    streak_norm = min(1.0, max(0, streak) / 30.0)
     intensity = min(1.0, last7_done / 21.0)
-    if user.last_completed_date is None:
-        inactivity = 0.0
-    else:
-        inactivity = max(0.0, 1.0 - (d0 - user.last_completed_date).days / 7.0)
-    score = completion * 50 + streak_norm * 25 + intensity * 15 + inactivity * 10
+    recency = 0.0 if last_completed is None else max(0.0, 1.0 - (d0 - last_completed).days / 7.0)
+    raw = completion * 50 + streak_norm * 25 + intensity * 15 + recency * 10
+    confidence = min(1.0, total / DISCIPLINE_CONFIDENCE_ITEMS)
+    score = DISCIPLINE_BASELINE * (1 - confidence) + raw * confidence
     return int(round(max(0, min(100, score))))
+
+
+async def discipline_score(db: AsyncSession, user: User) -> int:
+    d0 = today()
+    last7 = d0 - timedelta(days=6)
+    ledger = await day_ledger(db, user.id, d0 - timedelta(days=29), d0)
+    total = sum(s.due for s in ledger.values())
+    done = sum(s.done for s in ledger.values())
+    last7_done = sum(s.done for d, s in ledger.items() if d >= last7)
+    return discipline_from(total, done, last7_done, user.streak or 0, user.last_completed_date, d0)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -241,20 +311,29 @@ async def recompute(db: AsyncSession, user: User, *, completed_now: bool = False
     since = d0 - timedelta(days=STREAK_WINDOW_DAYS)
     active = await _active_days(db, user.id, since)
     frozen = await _frozen_days(db, user.id, since)
-    user.streak = _streak_from(active | frozen, d0)
-    user.longest_streak = max(user.longest_streak or 0, user.streak)
+    covered = active | frozen
+    user.streak = _streak_from(covered, d0)
+    # Rekord ham haqiqiy kunlardan: belgilab-bekor qilish rekordni sun'iy oshirmaydi.
+    user.longest_streak = max(user.streak, _longest_run(covered, d0))
     past_active = [d for d in active if d <= d0]
     user.last_completed_date = max(past_active) if past_active else None
     user.discipline_score = await discipline_score(db, user)
 
     reward = Reward(level=user.level, streak=user.streak, leveled_up=user.level > prev_level)
 
+    # Mukammal kun: bugungi hamma ish bajarilgan bo'lsa hisoblanadi; bekor qilinsa
+    # (yoki bajarilgan reja o'chirilsa) — bugungi hisob qaytariladi.
+    done, all_ = await today_progress(db, user.id)
+    perfect_now = all_ >= 1 and done >= all_
+    if perfect_now and user.last_perfect_day != d0:
+        user.last_perfect_day = d0
+        user.perfect_days = (user.perfect_days or 0) + 1
+        reward.perfect_day = completed_now
+    elif not perfect_now and user.last_perfect_day == d0:
+        user.last_perfect_day = None
+        user.perfect_days = max(0, (user.perfect_days or 0) - 1)
+
     if completed_now:
-        done, all_ = await today_progress(db, user.id)
-        if all_ >= 1 and done >= all_ and user.last_perfect_day != d0:
-            user.last_perfect_day = d0
-            user.perfect_days = (user.perfect_days or 0) + 1
-            reward.perfect_day = True
         reward.unlocked = await _unlock(db, user, reward.perfect_day, prev_last, d0)
 
     await db.commit()
@@ -298,6 +377,12 @@ async def _unlock(db: AsyncSession, user: User, perfect: bool, prev_last: date |
 #  Ilova uchun statistika (GET /stats)
 # ─────────────────────────────────────────────────────────────
 async def snapshot(db: AsyncSession, user: User, is_premium: bool) -> dict:
+    # Intizom bali har so'rovda joriy holatdan hisoblanadi: reja qo'shilsa/o'chirilsa,
+    # odat arxivlansa yoki kun almashsa ham eskirgan qiymat ko'rinmaydi.
+    fresh = await discipline_score(db, user)
+    if fresh != user.discipline_score:
+        user.discipline_score = fresh
+        await db.commit()
     lvl, in_lvl, needed, pct = xp_progress(user.xp or 0)
     rank_title, rank_emoji = rank_for_level(lvl)
     done, total = await today_progress(db, user.id)
@@ -318,9 +403,9 @@ async def snapshot(db: AsyncSession, user: User, is_premium: bool) -> dict:
         "xp_percent": pct,
         "streak": user.streak or 0,
         "longest_streak": user.longest_streak or 0,
-        "streak_at_risk": user.last_completed_date != today(),
+        "streak_at_risk": (user.streak or 0) > 0 and user.last_completed_date != today(),
         "streak_freezes": user.streak_freezes or 0,
-        "discipline_score": user.discipline_score if user.discipline_score is not None else 50,
+        "discipline_score": user.discipline_score,
         "rank_title": rank_title,
         "rank_emoji": rank_emoji,
         "is_premium": is_premium,
@@ -338,6 +423,32 @@ async def snapshot(db: AsyncSession, user: User, is_premium: bool) -> dict:
             }
             for code, at in achs
             if code in ACH
+        ],
+    }
+
+
+ACTIVITY_MAX_DAYS = 120
+
+
+async def activity(db: AsyncSession, user: User, days: int) -> dict:
+    """Natijalar sahifasi uchun kunma-kun faollik (o'chirilgan odatlar tarixi ham kiradi)."""
+    days = max(1, min(ACTIVITY_MAX_DAYS, days))
+    d0 = today()
+    start = d0 - timedelta(days=days - 1)
+    ledger = await day_ledger(db, user.id, start, d0)
+    return {
+        "date_from": start.isoformat(),
+        "date_to": d0.isoformat(),
+        "days": [
+            {
+                "date": d.isoformat(),
+                "done": s.done,
+                "plans_done": s.plans_done,
+                "plans_due": s.plans_due,
+                "habits_done": s.habits_done,
+                "habits_due": s.habits_due,
+            }
+            for d, s in sorted(ledger.items())
         ],
     }
 

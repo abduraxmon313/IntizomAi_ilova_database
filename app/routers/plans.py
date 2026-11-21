@@ -112,9 +112,8 @@ async def delete_plan(plan_id: int, user: User = Depends(onboarded_user), db: As
     plan = await _own(db, user, plan_id)
     if plan_svc.block_reason(plan.plan_date, plan.scheduled_time) == "past":
         fail(409, "plan_past_edit")
-    was_done = plan.status == "done"
     await db.delete(plan)
     await db.commit()
-    if was_done:
-        await gamification.recompute(db, user)
+    # Bajarilmagan reja o'chsa ham bugungi holat (mukammal kun, intizom bali) o'zgaradi.
+    await gamification.recompute(db, user)
     return {"ok": True}
