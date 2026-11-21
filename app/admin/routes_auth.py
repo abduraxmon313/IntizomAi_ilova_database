@@ -30,7 +30,12 @@ async def login_page(request: Request, db: AsyncSession = Depends(get_session)):
     except auth.LoginRequired:
         pass
     configured = bool(await db.scalar(select(func.count(AdminUser.id))))
-    return render(request, "login.html", configured=configured, next=_safe_next(request.query_params.get("next")))
+    if not configured:
+        # Ishga tushishda yaratilmagan bo'lsa (masalan, o'zgaruvchi keyin qo'shilgan) — hozir urinamiz.
+        await auth.bootstrap(db)
+        configured = bool(await db.scalar(select(func.count(AdminUser.id))))
+    return render(request, "login.html", configured=configured, next=_safe_next(request.query_params.get("next")),
+                  boot=auth.bootstrap_status())
 
 
 @router.post("/login")

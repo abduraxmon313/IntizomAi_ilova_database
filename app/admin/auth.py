@@ -9,6 +9,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import os
 import secrets
 import struct
 import time
@@ -281,15 +282,50 @@ async def audit(
 # ─────────────────────────────────────────────────────────────
 #  Birinchi admin (Railway Variables orqali)
 # ─────────────────────────────────────────────────────────────
+def _env(name: str) -> str:
+    """Muhit o'zgaruvchisini shu zahoti o'qiydi (nomidagi ortiqcha bo'shliqqa ham chidamli)."""
+    v = os.getenv(name)
+    if v is None:
+        for k, val in os.environ.items():
+            if k.strip().upper() == name:
+                v = val
+                break
+    return (v or "").strip().strip('"').strip("'")
+
+
+def bootstrap_status() -> dict:
+    """Login sahifasida ko'rsatiladi — qiymatlar emas, faqat bor/yo'qligi."""
+    return {
+        "username_set": bool(_env("ADMIN_USERNAME")),
+        "password_set": bool(_env("ADMIN_PASSWORD")),
+        "error": _last_error,
+    }
+
+
+_last_error: str | None = None
+
+
 async def bootstrap(db: AsyncSession) -> None:
     """ADMIN_USERNAME + ADMIN_PASSWORD berilgan bo'lsa:
     • adminlar jadvali bo'sh — shu login bilan "Egasi" yaratiladi;
     • ADMIN_RESET_PASSWORD=true — shu loginning paroli tiklanadi (2FA ham o'chadi).
+    Ishga tushishda va admin hali yo'q bo'lsa — login sahifasi ochilganda chaqiriladi.
     """
-    username = config.ADMIN_USERNAME.strip().lower()
-    password = config.ADMIN_PASSWORD
+    global _last_error
+    username = _env("ADMIN_USERNAME").lower()
+    password = _env("ADMIN_PASSWORD")
     if not username or not password:
         return
+    try:
+        await _bootstrap(db, username, password)
+        _last_error = None
+    except Exception as e:  # sahifada sababini ko'rsatamiz
+        await db.rollback()
+        _last_error = f"{type(e).__name__}: {str(e)[:200]}"
+        log.exception("Admin panel: birinchi adminni yaratib bo'lmadi")
+
+
+async def _bootstrap(db: AsyncSession, username: str, password: str) -> None:
     count = await db.scalar(select(func.count(AdminUser.id))) or 0
     existing = await db.scalar(select(AdminUser).where(AdminUser.username == username))
     if count == 0:
@@ -297,7 +333,7 @@ async def bootstrap(db: AsyncSession) -> None:
         db.add(AdminAudit(action="admin.bootstrap", target_type="admin", target_id=username, summary="Birinchi admin yaratildi"))
         await db.commit()
         log.info("Admin panel: birinchi admin yaratildi (%s)", username)
-    elif existing is not None and config.ADMIN_RESET_PASSWORD:
+    elif existing is not None and _env("ADMIN_RESET_PASSWORD").lower() in ("1", "true", "yes", "on"):
         existing.password_hash = hash_password(password)
         existing.totp_secret = None
         existing.is_active = True
