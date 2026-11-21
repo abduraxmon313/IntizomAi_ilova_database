@@ -33,7 +33,6 @@ SPECS: list[Spec] = [
     Spec("FREE_HABIT_LIMIT", "int", "Odatlar", "Bepul foydalanuvchining faol odatlari soni.", "Bepul tarif", 0, 1000),
     Spec("FREE_GOAL_LIMIT", "int", "Maqsadlar", "Bepul foydalanuvchining maqsadlari soni.", "Bepul tarif", 0, 1000),
     Spec("FREE_AI_DAILY_LIMIT", "int", "AI xabarlar (kuniga)", "Bepul foydalanuvchi AI murabbiyga kuniga nechta xabar yozadi.", "Bepul tarif", 0, 1000),
-    Spec("LEADERBOARD_PREMIUM_ONLY", "bool", "Reyting faqat Premium", "Umumiy reyting faqat Premium foydalanuvchilarga ochiq.", "Bepul tarif"),
     Spec("GROUP_CREATE_PREMIUM_ONLY", "bool", "Guruh yaratish faqat Premium", "Taklifni qabul qilish baribir bepul.", "Bepul tarif"),
     Spec("MAX_GROUPS_PER_OWNER", "int", "Bitta egadagi guruhlar", "Bir foydalanuvchi nechta guruh yarata oladi.", "Guruhlar", 1, 1000),
     Spec("MAX_GROUPS_PER_USER", "int", "Bitta a'zodagi guruhlar", "Bir foydalanuvchi nechta guruhda bo'la oladi.", "Guruhlar", 1, 1000),

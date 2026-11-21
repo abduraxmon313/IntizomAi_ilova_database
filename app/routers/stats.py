@@ -6,9 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services import runtime_settings as rs
 from app.db import get_session
-from app.errors import fail
 from app.models import Checkin, User
 from app.security import limit_action, onboarded_user
 from app.services import announcements, gamification, premium
@@ -64,8 +62,8 @@ def _first_name(u: User) -> str:
 
 @router.get("/leaderboard")
 async def leaderboard(period: str = "all", user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
-    if rs.get("LEADERBOARD_PREMIUM_ONLY") and not premium.is_premium(user):
-        fail(402, "leaderboard_premium")
+    """Reyting hamma uchun ochiq (bepul ham) — o'zini boshqalar bilan solishtirish uchun.
+    Premium foydalanuvchilar `is_premium` belgisi bilan ajralib turadi."""
     col = _LB.get(period, User.total_score)
     attr = col.key
     visible = (User.onboarded.is_(True), User.leaderboard_visible.is_(True))
@@ -79,6 +77,7 @@ async def leaderboard(period: str = "all", user: User = Depends(onboarded_user),
             "photo_url": photo_url(u),
             "value": int(getattr(u, attr) or 0),
             "is_me": u.id == user.id,
+            "is_premium": premium.is_premium(u),
         }
         for i, u in enumerate(rows)
     ]
@@ -95,6 +94,7 @@ async def leaderboard(period: str = "all", user: User = Depends(onboarded_user),
             "username": user.username,
             "photo_url": photo_url(user),
             "value": my_val,
+            "is_premium": premium.is_premium(user),
             "in_top": any(t["is_me"] for t in top),
             "visible": user.leaderboard_visible,
         },
