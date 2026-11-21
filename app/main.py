@@ -42,13 +42,12 @@ async def _startup() -> None:
     from app.db import SessionLocal
     from app.services import pricing, runtime_settings
 
-    try:
-        async with SessionLocal() as db:
-            await pricing.ensure_defaults(db)
-            await runtime_settings.load(db)
-            await admin_auth.bootstrap(db)
-    except Exception:
-        log.exception("Ishga tushish vazifalari bajarilmadi (migratsiya qo'llanganmi?)")
+    for task in (pricing.ensure_defaults, runtime_settings.load, admin_auth.bootstrap):
+        try:
+            async with SessionLocal() as db:
+                await task(db)
+        except Exception:
+            log.exception("Ishga tushish vazifasi bajarilmadi: %s", task.__name__)
 
 
 app = FastAPI(

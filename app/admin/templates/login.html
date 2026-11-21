@@ -13,6 +13,16 @@
         <p class="muted">Railway'da ilova backend servisi → <b>Variables</b> bo'limiga qo'shing:</p>
         <div class="secret-box">ADMIN_USERNAME=sizning_login<br>ADMIN_PASSWORD=kuchli_parol</div>
         <p class="muted small">Deploydan keyin shu login bilan kiring. Birinchi admin «Egasi» huquqiga ega bo'ladi.</p>
+        <h3 style="margin-top:16px">Server hozir nimani ko'ryapti</h3>
+        <ul class="small" style="padding-left:18px;margin:0">
+          <li>ADMIN_USERNAME: {% if boot.username_set %}<span class="badge ok">bor</span>{% else %}<span class="badge err">topilmadi</span>{% endif %}</li>
+          <li>ADMIN_PASSWORD: {% if boot.password_set %}<span class="badge ok">bor</span>{% else %}<span class="badge err">topilmadi</span>{% endif %}</li>
+        </ul>
+        {% if boot.error %}<div class="flash err small" style="margin-top:10px">Yaratishda xato: {{ boot.error }}</div>{% endif %}
+        {% if not boot.username_set or not boot.password_set %}
+        <p class="muted small" style="margin-top:10px">O'zgaruvchi aynan <b>ilova backend</b> servisiga (Postgres yoki bot servisiga emas) qo'shilganini va
+          o'zgarishlar <b>Deploy</b> qilinganini tekshiring (Railway'da «Apply changes» / «Deploy» tugmasi).</p>
+        {% endif %}
       </div>
     {% else %}
     <form method="post" action="/admin/login" class="card" autocomplete="on">
