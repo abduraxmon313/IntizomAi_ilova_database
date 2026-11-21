@@ -175,11 +175,6 @@ _M: dict[str, tuple[str, str, str]] = {
     ),
     "ai_empty": ("Xabar bo'sh.", "Пустое сообщение.", "Empty message."),
     # ── Premium ──
-    "leaderboard_premium": (
-        "Reyting Premium foydalanuvchilar uchun.",
-        "Рейтинг доступен в Премиум.",
-        "The leaderboard is a Premium feature.",
-    ),
     "group_create_premium": (
         "Guruh yaratish Premium bilan ochiladi. Taklifni qabul qilish — bepul.",
         "Создание групп доступно в Премиум. Принять приглашение — бесплатно.",

@@ -81,8 +81,6 @@ FREE_DAILY_PLAN_LIMIT = _int("FREE_DAILY_PLAN_LIMIT", 5)
 FREE_HABIT_LIMIT = _int("FREE_HABIT_LIMIT", 3)
 FREE_GOAL_LIMIT = _int("FREE_GOAL_LIMIT", 3)
 FREE_AI_DAILY_LIMIT = _int("FREE_AI_DAILY_LIMIT", 3)
-# Reyting faqat Premium uchunmi (botdagidek).
-LEADERBOARD_PREMIUM_ONLY = _bool("LEADERBOARD_PREMIUM_ONLY", True)
 # Guruh yaratish faqat Premium uchunmi. A'zo bo'lish (taklifni qabul qilish) — bepul.
 GROUP_CREATE_PREMIUM_ONLY = _bool("GROUP_CREATE_PREMIUM_ONLY", True)
 
