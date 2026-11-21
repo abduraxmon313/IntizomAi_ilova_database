@@ -176,9 +176,14 @@ _M: dict[str, tuple[str, str, str]] = {
     "ai_empty": ("Xabar bo'sh.", "Пустое сообщение.", "Empty message."),
     # ── Premium ──
     "group_create_premium": (
-        "Guruh yaratish Premium bilan ochiladi. Taklifni qabul qilish — bepul.",
-        "Создание групп доступно в Премиум. Принять приглашение — бесплатно.",
-        "Creating groups is a Premium feature. Accepting invites is free.",
+        "Guruh yaratish Premium bilan ochiladi.",
+        "Создание групп доступно в Премиум.",
+        "Creating groups is a Premium feature.",
+    ),
+    "group_join_premium": (
+        "Guruhga qo'shilish Premium bilan ochiladi.",
+        "Вступление в группу доступно в Премиум.",
+        "Joining groups is a Premium feature.",
     ),
     "billing_disabled": (
         "To'lov tizimi vaqtincha ishlamayapti.",

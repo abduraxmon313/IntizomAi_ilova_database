@@ -108,6 +108,13 @@ async def remote_status(force: bool = False) -> dict:
     return result
 
 
+def _monthly(amount: int, days: int) -> int:
+    """Oyiga narx: butun oylar soniga bo'linadi (365 kun = 12 oy), 10 so'mga pastga yaxlitlanadi.
+    Masalan 179 900 so'm / 12 oy = 14 990 so'm."""
+    months = max(1, round(days / 30.4))
+    return amount // months // 10 * 10
+
+
 def _plan_json(plan: PricingPlan, promo: Promocode | None) -> dict:
     q = promos.quote(plan, promo)
     discounted = q.amount < plan.price
@@ -119,7 +126,7 @@ def _plan_json(plan: PricingPlan, promo: Promocode | None) -> dict:
         "days": plan.days,
         "price": q.amount,
         "price_label": price_label(q.amount),
-        "monthly_label": price_label(q.amount * 30 // max(1, plan.days) // 100 * 100),
+        "monthly_label": price_label(_monthly(q.amount, plan.days)),
         "emoji": plan.emoji,
         "tag": tag,
         "original_price": orig,

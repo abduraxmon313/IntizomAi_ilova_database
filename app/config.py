@@ -81,8 +81,10 @@ FREE_DAILY_PLAN_LIMIT = _int("FREE_DAILY_PLAN_LIMIT", 5)
 FREE_HABIT_LIMIT = _int("FREE_HABIT_LIMIT", 3)
 FREE_GOAL_LIMIT = _int("FREE_GOAL_LIMIT", 3)
 FREE_AI_DAILY_LIMIT = _int("FREE_AI_DAILY_LIMIT", 3)
-# Guruh yaratish faqat Premium uchunmi. A'zo bo'lish (taklifni qabul qilish) — bepul.
+# Guruh yaratish faqat Premium uchunmi.
 GROUP_CREATE_PREMIUM_ONLY = _bool("GROUP_CREATE_PREMIUM_ONLY", True)
+# Guruhga qo'shilish (taklifni qabul qilish) faqat Premium uchunmi.
+GROUP_JOIN_PREMIUM_ONLY = _bool("GROUP_JOIN_PREMIUM_ONLY", True)
 
 # ── Guruhlar ────────────────────────────────────────────────────────────────
 MAX_GROUPS_PER_OWNER = _int("MAX_GROUPS_PER_OWNER", 10)
