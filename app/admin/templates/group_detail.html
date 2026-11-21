@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}{{ g.name }}{% endblock %}
+{% block heading %}{{ g.name }}{% endblock %}
+{% block sub %}<div class="sub">Guruh #{{ g.id }} · {{ g.created_at|fdt }}{% if g.description %} · {{ g.description }}{% endif %}</div>{% endblock %}
+{% block actions %}<a class="btn" href="/admin/groups">← Guruhlar</a>{% endblock %}
+{% block content %}
+<div class="grid g2">
+  <div class="card flush">
+    <div class="card-head" style="padding:16px 16px 0"><h2>A'zolar ({{ members|length }})</h2></div>
+    <table><tbody>
+      {% for gm, u in members %}<tr><td>{{ m.person(u) }}</td>
+        <td>{% if gm.role == 'owner' %}<span class="badge brand">Ega</span>{% endif %}{% if not gm.is_active %} <span class="badge warn">Pauza</span>{% endif %}</td>
+        <td class="small nowrap muted">{{ gm.joined_at|fdate }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="stack">
+    <div class="card flush">
+      <div class="card-head" style="padding:16px 16px 0"><h2>Takliflar</h2></div>
+      <table><tbody>
+        {% for inv, u in invites %}<tr><td>{{ m.person(u) }}</td>
+          <td><span class="badge {{ {'accepted':'ok','pending':'warn','declined':'err'}.get(inv.status, '') }}">{{ {'pending':'Kutilmoqda','accepted':'Qabul qilgan','declined':'Rad etgan','cancelled':'Bekor','expired':'Eskirgan'}.get(inv.status, inv.status) }}</span></td>
+          <td class="small nowrap muted">{{ inv.created_at|fdate }}</td></tr>
+        {% else %}<tr><td class="empty">Taklif yo'q.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+    {% if ctx.can('admin') %}
+    <details class="danger-zone">
+      <summary>Guruhni o'chirish</summary>
+      <p class="muted small">Masalan, nomi yoki tavsifi qoidalarga zid bo'lsa. A'zolarning reja va odatlari saqlanadi.</p>
+      <form method="post" action="/admin/groups/{{ g.id }}/delete" class="row" data-confirm="Guruhni o'chirasizmi?">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="text" name="reason" maxlength="200" placeholder="Sabab (majburiy)" required style="flex:1">
+        <button class="btn danger" type="submit">O'chirish</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

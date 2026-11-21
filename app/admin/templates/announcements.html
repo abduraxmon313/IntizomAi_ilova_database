@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}E'lonlar{% endblock %}
+{% block heading %}E'lonlar{% endblock %}
+{% block sub %}<div class="sub">Ilovada «Bugun» sahifasining tepasida chiqadi. Botdagi «xabar yuborish» o'rnini bosadi.</div>{% endblock %}
+{% block actions %}{% if ctx.can('admin') %}<a class="btn primary" href="/admin/announcements/new">+ Yangi e'lon</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="seg" style="margin-bottom:14px">
+  <a class="{{ 'on' if not personal }}" href="/admin/announcements">Umumiy e'lonlar</a>
+  <a class="{{ 'on' if personal }}" href="/admin/announcements?personal=1">Shaxsiy xabarlar</a>
+</div>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>E'lon</th><th>Kimga</th><th class="right">Ko'rildi</th><th>Davr</th><th>Holat</th><th></th></tr></thead>
+    <tbody>
+    {% for a in page.items %}
+      {% set live = a.is_active and (not a.starts_at or a.starts_at <= now) and (not a.ends_at or a.ends_at > now) %}
+      <tr>
+        <td><b>{{ a.title }}</b><div class="muted small" style="max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ a.body }}</div>
+          <div class="faint small">{{ a.created_by or '—' }} · {{ a.created_at|fdt }}</div></td>
+        <td class="small">{% if a.audience == 'user' %}<a href="/admin/users/{{ a.target_user_id }}">Foydalanuvchi #{{ a.target_user_id }}</a>{% else %}{{ AUD[a.audience] }}<div class="faint">≈ {{ sizes[a.id]|num }} kishi</div>{% endif %}</td>
+        <td class="right num">{{ a.views|num }}</td>
+        <td class="small nowrap">{{ a.starts_at|fdt if a.starts_at else 'darhol' }}<br>→ {{ a.ends_at|fdt if a.ends_at else 'muddatsiz' }}</td>
+        <td>{% if live %}<span class="badge ok">Ko'rinmoqda</span>{% elif not a.is_active %}<span class="badge">To'xtatilgan</span>{% elif a.ends_at and a.ends_at <= now %}<span class="badge err">Tugagan</span>{% else %}<span class="badge brand">Rejalashtirilgan</span>{% endif %}</td>
+        <td class="actions">{% if ctx.can('admin') %}
+          {% if a.audience != 'user' %}<a class="btn sm" href="/admin/announcements/{{ a.id }}">Tahrirlash</a>{% endif %}
+          {{ m.post("/admin/announcements/" ~ a.id ~ "/toggle", "To'xtatish" if a.is_active else "Yoqish", csrf) }}
+          {{ m.post("/admin/announcements/" ~ a.id ~ "/delete", "O'chirish", csrf, cls="btn sm danger", confirm="E'lonni o'chirasizmi?") }}
+        {% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">Hozircha e'lon yo'q.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}

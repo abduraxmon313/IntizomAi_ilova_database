@@ -23,17 +23,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import config
-from app.models import PaymentOrder, User, utcnow
+from app.i18n import t
+from app.models import PaymentOrder, PricingPlan, Promocode, User, utcnow
 from app.security import sign
-from app.services import premium
+from app.services import premium, pricing, promos, runtime_settings
+from app.services.pricing import price_label
 
 log = logging.getLogger(__name__)
 
-DEFAULT_PLANS = [
-    {"key": "1m", "title": "1 oy", "days": 30, "price": 39900, "emoji": "✅", "tag": None},
-    {"key": "3m", "title": "3 oy", "days": 90, "price": 79900, "emoji": "⭐", "tag": "33% tejaysiz"},
-    {"key": "12m", "title": "12 oy", "days": 365, "price": 179900, "emoji": "💎", "tag": None},
-]
 PROVIDER_TITLES = {"payme": "Payme", "click": "Click", "uzum": "Uzum Bank", "paylov": "Paylov"}
 
 
@@ -43,10 +40,6 @@ class BillingError(Exception):
         self.status = status
         self.detail = detail
         self.code = code
-
-
-def price_label(som: int) -> str:
-    return f"{som:,}".replace(",", " ") + " so'm"
 
 
 async def _request(method: str, path: str, payload: dict | None = None) -> dict:
@@ -83,67 +76,78 @@ async def _request(method: str, path: str, payload: dict | None = None) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-# ── Tariflar (5 daqiqa kesh — narxni admin botda o'zgartiradi) ──
-_plans_cache: tuple[float, dict] | None = None
+# ── To'lov usullari va holati botdan (5 daqiqa kesh). Tarif va promokodlar — ilova bazasida. ──
+_remote_cache: tuple[float, dict] | None = None
 
 
-def _decorate(plans: list[dict]) -> list[dict]:
-    out = []
-    for p in plans:
-        price = int(p.get("price") or 0)
-        orig = p.get("original_price")
-        orig = int(orig) if orig and int(orig) != price else None
-        out.append(
-            {
-                "key": p["key"],
-                "title": p.get("title") or p["key"],
-                "days": int(p.get("days") or 0),
-                "price": price,
-                "price_label": price_label(price),
-                "monthly_label": price_label(price * 30 // max(1, int(p.get("days") or 30)) // 100 * 100),
-                "emoji": p.get("emoji"),
-                "tag": p.get("tag") or None,
-                "original_price": orig,
-                "original_price_label": price_label(orig) if orig else None,
-            }
-        )
-    return out
-
-
-async def catalog(promo_code: str | None = None) -> dict:
-    """{plans, providers, promo, payments_enabled}. Bot ishlamasa — default katalog (sotib olish o'chiq)."""
-    global _plans_cache
+async def remote_status(force: bool = False) -> dict:
+    """{providers, payments_enabled, reachable, error}. Bot ishlamasa — oxirgi ma'lum holat."""
+    global _remote_cache
     if not config.BILLING_ENABLED:
-        return {"plans": _decorate(DEFAULT_PLANS), "providers": [], "promo": None, "payments_enabled": False}
-    if not promo_code and _plans_cache and time.monotonic() - _plans_cache[0] < 300:
-        return _plans_cache[1]
-    path = "/partner/v1/plans"
-    if promo_code:
-        from urllib.parse import quote
-
-        path += "?promo_code=" + quote(promo_code.strip()[:64])
+        return {"providers": [], "payments_enabled": False, "reachable": False, "error": "BILLING_* sozlanmagan"}
+    if not force and _remote_cache and time.monotonic() - _remote_cache[0] < 300:
+        return _remote_cache[1]
     try:
-        data = await _request("GET", path)
+        data = await _request("GET", "/partner/v1/plans")
     except BillingError as e:
-        log.warning("Tariflarni olishda xato: %s", e)
-        if _plans_cache:
-            return _plans_cache[1]
-        return {"plans": _decorate(DEFAULT_PLANS), "providers": [], "promo": None, "payments_enabled": False}
+        log.warning("Bot to'lov holatini olishda xato: %s", e)
+        if _remote_cache:
+            return {**_remote_cache[1], "reachable": False, "error": str(e)}
+        return {"providers": [], "payments_enabled": False, "reachable": False, "error": str(e)}
     result = {
-        "plans": _decorate(data.get("plans") or DEFAULT_PLANS),
         "providers": [
-            {"key": k, "title": PROVIDER_TITLES.get(k, k.title())}
-            for k in (data.get("providers") or ["paylov"])
+            {"key": k, "title": PROVIDER_TITLES.get(k, k.title())} for k in (data.get("providers") or ["paylov"])
         ],
-        "promo": data.get("promo"),
         "payments_enabled": bool(data.get("payments_enabled", True)),
+        "reachable": True,
+        "error": None,
+        # Faqat admin paneldagi "botdan import" uchun.
+        "bot_plans": data.get("plans") or [],
     }
-    if not promo_code:
-        _plans_cache = (time.monotonic(), result)
+    _remote_cache = (time.monotonic(), result)
     return result
 
 
-async def create_remote_order(order: PaymentOrder, user: User, return_url: str | None) -> dict:
+def _plan_json(plan: PricingPlan, promo: Promocode | None) -> dict:
+    q = promos.quote(plan, promo)
+    discounted = q.amount < plan.price
+    orig = plan.price if discounted else (plan.original_price if plan.original_price and plan.original_price > plan.price else None)
+    tag = f"{q.discount_percent}% chegirma" if discounted else (plan.tag or None)
+    return {
+        "key": plan.key,
+        "title": plan.title,
+        "days": plan.days,
+        "price": q.amount,
+        "price_label": price_label(q.amount),
+        "monthly_label": price_label(q.amount * 30 // max(1, plan.days) // 100 * 100),
+        "emoji": plan.emoji,
+        "tag": tag,
+        "original_price": orig,
+        "original_price_label": price_label(orig) if orig else None,
+        "bonus_days": q.bonus_days,
+    }
+
+
+async def catalog(db: AsyncSession, user: User, promo_code: str | None = None) -> dict:
+    """{plans, providers, promo, payments_enabled} — ilovadagi Premium oynasi uchun."""
+    promo_info, promo = None, None
+    if promo_code and promo_code.strip():
+        try:
+            promo = await promos.validate_for_user(db, user, promo_code)
+            promo_info = promos.promo_public(promo)
+        except promos.PromoError as e:
+            promo_info = {"code": promo_code.strip()[:64], "valid": False, "reason_code": e.key, "reason": t(e.key)}
+    plans = await pricing.list_plans(db)
+    remote = await remote_status()
+    return {
+        "plans": [_plan_json(p, promo) for p in plans],
+        "providers": [{"key": x["key"], "title": x["title"]} for x in remote["providers"]],
+        "promo": promo_info,
+        "payments_enabled": bool(remote["payments_enabled"] and runtime_settings.get("SALES_ENABLED") and plans),
+    }
+
+
+async def create_remote_order(order: PaymentOrder, user: User, title: str, return_url: str | None) -> dict:
     return await _request(
         "POST",
         "/partner/v1/orders",
@@ -152,25 +156,26 @@ async def create_remote_order(order: PaymentOrder, user: User, return_url: str |
             "app_user_id": user.id,
             "app_user_label": f"@{user.username}" if user.username else f"id{user.id}",
             "plan_key": order.plan_key,
+            "title": title,
             "provider": order.provider,
-            "promo_code": order.promo_code,
+            # Narx va kunlarni ilova belgilaydi (bot faqat Paylov ko'prigi).
+            "amount_tiyin": int(order.amount or 0),
+            "days": int(order.days or 0),
+            "bonus_days": int(order.bonus_days or 0),
             "return_url": return_url,
         },
     )
+
+
+async def fetch_bot_promocodes() -> list[dict]:
+    data = await _request("GET", "/partner/v1/promocodes")
+    return data.get("promocodes") or []
 
 
 async def fetch_remote_order(external_id: str) -> dict:
     from urllib.parse import quote
 
     return await _request("GET", "/partner/v1/orders/" + quote(external_id, safe=""))
-
-
-async def redeem_remote_promo(code: str, user: User, customer_ref: str) -> dict:
-    return await _request(
-        "POST",
-        "/partner/v1/promo/redeem",
-        {"code": code.strip()[:64], "app_user_id": user.id, "customer_ref": customer_ref},
-    )
 
 
 async def mark_paid(db: AsyncSession, order: PaymentOrder, *, days: int | None, paid_at: datetime | None) -> bool:
@@ -193,6 +198,7 @@ async def mark_paid(db: AsyncSession, order: PaymentOrder, *, days: int | None, 
     if sub is None:
         # Premium allaqachon shu to'lov bilan berilgan — faqat buyurtma holatini saqlaymiz.
         await db.commit()
+    await promos.record_paid(db, order)
     log.info("To'lov faollashdi: order=%s user=%s days=%s", order.public_id, user.id, grant)
     return True
 

@@ -7,6 +7,7 @@ from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import config
+from app.services import runtime_settings as rs
 from app.errors import fail
 from app.models import (
     Group,
@@ -105,10 +106,10 @@ async def list_my_groups(db: AsyncSession, user: User) -> list[dict]:
 
 async def create_group(db: AsyncSession, owner: User, name: str, description: str | None) -> Group:
     own = int(await db.scalar(select(func.count(Group.id)).where(Group.owner_user_id == owner.id)) or 0)
-    if own >= config.MAX_GROUPS_PER_OWNER:
-        fail(409, "group_owner_limit", limit=config.MAX_GROUPS_PER_OWNER)
-    if await _groups_of(db, owner.id) >= config.MAX_GROUPS_PER_USER:
-        fail(409, "group_user_limit", limit=config.MAX_GROUPS_PER_USER)
+    if own >= rs.get("MAX_GROUPS_PER_OWNER"):
+        fail(409, "group_owner_limit", limit=rs.get("MAX_GROUPS_PER_OWNER"))
+    if await _groups_of(db, owner.id) >= rs.get("MAX_GROUPS_PER_USER"):
+        fail(409, "group_user_limit", limit=rs.get("MAX_GROUPS_PER_USER"))
     g = Group(name=clean_group_name(name), description=clean_group_desc(description), owner_user_id=owner.id)
     db.add(g)
     await db.flush()
@@ -488,8 +489,8 @@ async def invite(db: AsyncSession, actor: User, group_id: int, username: str) ->
         fail(409, "invite_self")
     if await membership(db, group_id, target.id) is not None:
         fail(409, "invite_already_member")
-    if await member_count(db, group_id) >= config.MAX_MEMBERS_PER_GROUP:
-        fail(409, "group_full", limit=config.MAX_MEMBERS_PER_GROUP)
+    if await member_count(db, group_id) >= rs.get("MAX_MEMBERS_PER_GROUP"):
+        fail(409, "group_full", limit=rs.get("MAX_MEMBERS_PER_GROUP"))
     if await db.scalar(
         select(UserBlock.id).where(UserBlock.blocker_user_id == target.id, UserBlock.blocked_user_id == actor.id)
     ):
@@ -614,10 +615,10 @@ async def accept_invite(db: AsyncSession, user: User, invite_id: int) -> dict:
     if g is None:
         fail(404, "invite_not_found")
     if await membership(db, g.id, user.id) is None:
-        if await member_count(db, g.id) >= config.MAX_MEMBERS_PER_GROUP:
-            fail(409, "group_full", limit=config.MAX_MEMBERS_PER_GROUP)
-        if await _groups_of(db, user.id) >= config.MAX_GROUPS_PER_USER:
-            fail(409, "group_user_limit", limit=config.MAX_GROUPS_PER_USER)
+        if await member_count(db, g.id) >= rs.get("MAX_MEMBERS_PER_GROUP"):
+            fail(409, "group_full", limit=rs.get("MAX_MEMBERS_PER_GROUP"))
+        if await _groups_of(db, user.id) >= rs.get("MAX_GROUPS_PER_USER"):
+            fail(409, "group_user_limit", limit=rs.get("MAX_GROUPS_PER_USER"))
         db.add(GroupMember(group_id=g.id, user_id=user.id, role="member"))
     inv.status = "accepted"
     inv.responded_at = utcnow()

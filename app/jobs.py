@@ -128,8 +128,20 @@ async def sync_pending_payments() -> None:
         await db.commit()
 
 
+async def reload_settings() -> None:
+    from app.services import runtime_settings
+
+    async with SessionLocal() as db:
+        await runtime_settings.load(db)
+        # Admin panel sessiyalari: muddati o'tganlarini tozalaymiz.
+        from app.models import AdminSession
+
+        await db.execute(delete(AdminSession).where(AdminSession.expires_at < utcnow() - timedelta(days=7)))
+        await db.commit()
+
+
 async def run_once() -> None:
-    for job in (settle_days, grant_monthly_freezes, refresh_discipline, cleanup, sync_pending_payments):
+    for job in (reload_settings, settle_days, grant_monthly_freezes, refresh_discipline, cleanup, sync_pending_payments):
         try:
             await job()
         except Exception:

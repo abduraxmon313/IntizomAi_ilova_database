@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Hisobim{% endblock %}
+{% block heading %}Hisobim{% endblock %}
+{% block sub %}<div class="sub">@{{ ctx.admin.username }} · {{ ROLE_LABELS[ctx.admin.role] }}</div>{% endblock %}
+{% block content %}
+{% if ctx.admin.must_change_password %}<div class="note warn" style="margin-bottom:16px">Vaqtinchalik parol bilan kirdingiz. Davom etish uchun yangi parol o'rnating.</div>{% endif %}
+<div class="grid g2">
+  <form method="post" action="/admin/account/password" class="card">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <h2>Parolni o'zgartirish</h2>
+    <div class="field"><label>Joriy parol</label><input type="password" name="current" autocomplete="current-password" required></div>
+    <div class="field"><label>Yangi parol</label><input type="password" name="new" autocomplete="new-password" minlength="10" required><div class="help">Kamida 10 belgi, harf va raqam aralash.</div></div>
+    <div class="field"><label>Yangi parol (takror)</label><input type="password" name="again" autocomplete="new-password" minlength="10" required></div>
+    <button class="btn primary" type="submit">Saqlash</button>
+  </form>
+
+  <div class="card">
+    <h2>Ikki bosqichli kirish (2FA)</h2>
+    {% if has_2fa %}
+      <p><span class="badge ok">Yoqilgan</span> Kirishda parol va autentifikator kodi so'raladi.</p>
+      <form method="post" action="/admin/account/2fa/disable" class="row" data-confirm="2FA o'chirilsinmi? Hisob himoyasi pasayadi.">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="password" name="current" placeholder="Parolingiz" required style="flex:1">
+        <button class="btn danger" type="submit">O'chirish</button>
+      </form>
+    {% elif pending_secret %}
+      <ol class="muted" style="padding-left:18px">
+        <li>Google Authenticator, Authy yoki 1Password'da «Kalitni qo'lda kiritish»ni tanlang.</li>
+        <li>Hisob nomi: <b>IntizomAI Admin</b>, kalit:</li>
+      </ol>
+      <div class="row"><div class="secret-box" style="flex:1">{{ pending_secret }}</div><button class="btn sm" type="button" data-copy="{{ pending_secret }}">Nusxa</button></div>
+      <details class="disclose" style="margin:10px 0"><summary>otpauth havolasi</summary><div class="mono small" style="word-break:break-all;margin-top:6px">{{ pending_uri }}</div></details>
+      <form method="post" action="/admin/account/2fa/confirm" class="row">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="text" name="code" inputmode="numeric" maxlength="7" placeholder="Ilovadagi 6 xonali kod" required style="flex:1" autocomplete="one-time-code">
+        <button class="btn primary" type="submit">Tasdiqlash</button>
+      </form>
+    {% elif can_2fa %}
+      <p class="muted">Parol o'g'irlansa ham hisobingizga kirib bo'lmaydi. Tavsiya etiladi.</p>
+      {{ m.post("/admin/account/2fa/start", "2FA'ni yoqish", csrf, cls="btn primary") }}
+    {% else %}
+      <p class="muted">2FA uchun serverda <code>SECRET_KEY</code> sozlangan bo'lishi kerak.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card flush" style="margin-top:16px">
+  <div class="card-head" style="padding:16px 16px 0"><h2>Faol sessiyalarim</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Qurilma</th><th>IP</th><th>Kirgan</th><th>Oxirgi faollik</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sessions %}
+      <tr><td class="small" style="max-width:380px">{{ s.user_agent or '—' }}{% if s.id == ctx.session.id %} <span class="badge ok">shu qurilma</span>{% endif %}</td>
+        <td class="mono small">{{ s.ip }}</td><td class="small nowrap">{{ s.created_at|fdt }}</td><td class="small nowrap">{{ s.last_seen_at|ago }}</td>
+        <td class="actions">{% if s.id != ctx.session.id %}{{ m.post("/admin/account/sessions/" ~ s.id ~ "/revoke", "Yopish", csrf) }}{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

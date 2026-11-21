@@ -6,12 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import config
+from app.services import runtime_settings as rs
 from app.db import get_session
 from app.errors import fail
 from app.models import Checkin, User
-from app.security import onboarded_user
-from app.services import gamification, premium
+from app.security import limit_action, onboarded_user
+from app.services import announcements, gamification, premium
 from app.services.clock import today
 from app.services.users import display_name, photo_url
 
@@ -28,6 +28,21 @@ class CheckinIn(BaseModel):
 @router.get("/stats")
 async def stats(user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
     return await gamification.snapshot(db, user, premium.is_premium(user))
+
+
+@router.get("/announcements")
+async def list_announcements(user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
+    return {"announcements": [announcements.serialize(a) for a in await announcements.for_user(db, user)]}
+
+
+@router.post("/announcements/{announcement_id}/seen")
+async def announcement_seen(
+    announcement_id: int, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)
+):
+    # Ilova har e'lon uchun bir marta yuboradi; ko'rishlar soni admin panelda.
+    limit_action(f"ann-seen:{user.id}", 60, 3600)
+    await announcements.mark_seen(db, announcement_id)
+    return {"ok": True}
 
 
 @router.get("/stats/activity")
@@ -49,7 +64,7 @@ def _first_name(u: User) -> str:
 
 @router.get("/leaderboard")
 async def leaderboard(period: str = "all", user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
-    if config.LEADERBOARD_PREMIUM_ONLY and not premium.is_premium(user):
+    if rs.get("LEADERBOARD_PREMIUM_ONLY") and not premium.is_premium(user):
         fail(402, "leaderboard_premium")
     col = _LB.get(period, User.total_score)
     attr = col.key

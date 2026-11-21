@@ -70,6 +70,8 @@ async def _resolve(request: Request, db: AsyncSession) -> User:
     now = utcnow()
     if sess.revoked_at is not None or sess.expires_at <= now:
         fail(401, "unauthorized")
+    if user.banned_at is not None:
+        fail(403, "account_banned")
     # Sliding expiry: faol foydalanuvchi qayta kirmaydi. Yozuvni soatiga bir
     # martadan ko'p qilmaymiz (har so'rovda UPDATE bo'lmasin).
     if now - sess.last_used_at > timedelta(hours=1):

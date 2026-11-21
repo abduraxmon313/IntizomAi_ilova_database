@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ "E'lonni tahrirlash" if a else "Yangi e'lon" }}{% endblock %}
+{% block heading %}{{ "E'lonni tahrirlash" if a else "Yangi e'lon" }}{% endblock %}
+{% block actions %}<a class="btn" href="/admin/announcements">← E'lonlar</a>{% endblock %}
+{% block content %}
+{% if errors %}<ul class="errors">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+{% macro v(name, current) %}{{ form.str(name) if form else (current if current is not none else '') }}{% endmacro %}
+<form method="post" action="{{ '/admin/announcements/' ~ a.id if a else '/admin/announcements/new' }}" class="grid g3">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card span2">
+    <div class="field"><label>Sarlavha</label><input type="text" name="title" maxlength="120" required value="{{ v('title', a.title if a else '') }}" data-ann-title></div>
+    <div class="field"><label>Matn</label><textarea name="body" maxlength="2000" required data-ann-body>{{ form.raw('body') if form else (a.body if a else '') }}</textarea><div class="help">Oddiy matn. Qator tashlash saqlanadi.</div></div>
+    <div class="form-grid">
+      <div class="field"><label>Tugma yozuvi (ixtiyoriy)</label><input type="text" name="button_label" maxlength="40" value="{{ v('button_label', a.button_label if a else '') }}" placeholder="Batafsil"></div>
+      <div class="field"><label>Tugma havolasi</label><input type="url" name="button_url" maxlength="500" value="{{ v('button_url', a.button_url if a else '') }}" placeholder="https://t.me/..."></div>
+      <div class="field"><label>Kimga</label>
+        <select name="audience">{% for k, label in AUD.items() if k != 'user' %}<option value="{{ k }}" {{ 'selected' if (form.str('audience') if form else (a.audience if a else 'all')) == k }}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="field" style="align-self:end"><label class="check"><input type="checkbox" name="is_active" value="1" {{ 'checked' if (form.bool('is_active') if form else (a.is_active if a else true)) }}> Faol</label></div>
+      <div class="field"><label>Boshlanish (Toshkent vaqti)</label><input type="datetime-local" name="starts_at" value="{{ form.str('starts_at') if form else (a.starts_at|dtlocal if a else '') }}"><div class="help">Bo'sh — darhol</div></div>
+      <div class="field"><label>Tugash</label><input type="datetime-local" name="ends_at" value="{{ form.str('ends_at') if form else (a.ends_at|dtlocal if a else '') }}"><div class="help">Bo'sh — o'chirmaguningizcha</div></div>
+    </div>
+    <button class="btn primary" type="submit">Saqlash</button>
+  </div>
+  <div class="card">
+    <h2>Ilovada shunday ko'rinadi</h2>
+    <div class="ann-preview"><b data-prev-title>{{ a.title if a else "Sarlavha" }}</b><p data-prev-body>{{ a.body if a else "Matn" }}</p></div>
+    {% if a %}<p class="muted small" style="margin-top:14px">{{ a.views|num }} marta ko'rilgan · auditoriya ≈ {{ size|num }} kishi</p>{% endif %}
+    <div class="note small" style="margin-top:14px">Foydalanuvchi e'lonni yopsa, unga qayta chiqmaydi. Push-bildirishnoma yuborilmaydi — ilova ochilganda ko'rinadi.</div>
+  </div>
+</form>
+{% endblock %}

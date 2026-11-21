@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Kirish{% endblock %}
+{% block bare %}
+<div class="auth-wrap">
+  <div class="auth">
+    <div class="brand"><span class="brand-mark">I</span> IntizomAI Admin</div>
+    <p class="lead">Boshqaruv paneliga kirish</p>
+    {% if flash %}<div class="flash {{ flash.kind }}">{{ flash.msg }}</div>{% endif %}
+    {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+    {% if not configured %}
+      <div class="card">
+        <h2>Admin hisob hali yaratilmagan</h2>
+        <p class="muted">Railway'da ilova backend servisi → <b>Variables</b> bo'limiga qo'shing:</p>
+        <div class="secret-box">ADMIN_USERNAME=sizning_login<br>ADMIN_PASSWORD=kuchli_parol</div>
+        <p class="muted small">Deploydan keyin shu login bilan kiring. Birinchi admin «Egasi» huquqiga ega bo'ladi.</p>
+      </div>
+    {% else %}
+    <form method="post" action="/admin/login" class="card" autocomplete="on">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="u">Login</label>
+        <input id="u" type="text" name="username" value="{{ username or '' }}" autocomplete="username" autocapitalize="none" required {% if not need_code %}autofocus{% endif %}>
+      </div>
+      <div class="field">
+        <label for="p">Parol</label>
+        <input id="p" type="password" name="password" autocomplete="current-password" required>
+      </div>
+      {% if need_code %}
+      <div class="field">
+        <label for="c">2FA kodi</label>
+        <input id="c" type="text" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" autocomplete="one-time-code" autofocus>
+        <div class="help">Autentifikator ilovasidagi 6 xonali kod. Parolni qayta kiriting.</div>
+      </div>
+      {% endif %}
+      <button class="btn primary" type="submit">Kirish</button>
+    </form>
+    <p class="faint small" style="text-align:center;margin-top:14px">5 marta noto'g'ri urinishdan keyin hisob 15 daqiqaga qulflanadi.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

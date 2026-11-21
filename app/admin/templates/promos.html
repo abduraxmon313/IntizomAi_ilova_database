@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Promokodlar{% endblock %}
+{% block heading %}Promokodlar{% endblock %}
+{% block sub %}<div class="sub">Bepul Premium, bonus kunlar yoki chegirma · bitta hisob bitta kodni bir marta ishlatadi</div>{% endblock %}
+{% block actions %}
+  {% if ctx.can('admin') %}
+    {% if billing_enabled %}{{ m.post("/admin/promos-import-bot", "Bot'dan ko'chirish", csrf, cls="btn", confirm="Bot bazasidagi promokodlar ilovaga ko'chiriladi (mavjudlari o'zgarmaydi). Davom etasizmi?") }}{% endif %}
+    <a class="btn" href="/admin/promos.csv?q={{ q|urlencode }}&kind={{ kind }}">⇩ CSV</a>
+    <a class="btn primary" href="/admin/promos/new">+ Yangi promokod</a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+<form method="get" class="filters" style="margin-bottom:12px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Kod yoki izoh bo'yicha">
+  <select name="kind" data-autosubmit><option value="">Barcha turlar</option>{% for k, label in KINDS.items() %}<option value="{{ k }}" {{ 'selected' if k == kind }}>{{ label }}</option>{% endfor %}</select>
+  <select name="st" data-autosubmit><option value="">Barcha holatlar</option>{% for k, label in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if k == st }}>{{ label }}</option>{% endfor %}</select>
+  <button class="btn" type="submit">Qidirish</button>
+</form>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Kod</th><th>Turi</th><th>Qiymati</th><th>Tariflar</th><th class="right">Ishlatilgan</th><th class="right">Daromad</th><th>Muddat</th><th>Holat</th><th></th></tr></thead>
+    <tbody>
+    {% for p in page.items %}
+      {% set st_ = status(p) %}
+      <tr>
+        <td><a class="mono" href="/admin/promos/{{ p.id }}"><b>{{ p.code|upper }}</b></a>{% if p.note %}<div class="faint small">{{ p.note }}</div>{% endif %}</td>
+        <td class="small">{{ KINDS[p.kind] }}</td>
+        <td class="nowrap">{% if p.kind == 'free' %}🎁 {{ p.days }} kun{% elif p.kind == 'bonus' %}+{{ p.days }} kun{% else %}−{{ p.discount_percent }}%{% if p.days %} · +{{ p.days }} kun{% endif %}{% endif %}</td>
+        <td class="small">{{ plan_keys(p)|sort|join(', ') if plan_keys(p) else 'hammasi' }}</td>
+        <td class="right num nowrap">{{ p.used_count|num }}{% if p.max_uses %} / {{ p.max_uses|num }}{% else %} <span class="faint">/ ∞</span>{% endif %}</td>
+        <td class="right num nowrap">{{ revenue.get(p.id)|tiyin if revenue.get(p.id) else '—' }}</td>
+        <td class="small nowrap">{% if p.expires_at %}{{ p.expires_at|fdate }}{% else %}<span class="faint">muddatsiz</span>{% endif %}</td>
+        <td>{{ m.promo_badge(st_, STATUSES) }}</td>
+        <td class="actions">{% if ctx.can('admin') %}{{ m.post("/admin/promos/" ~ p.id ~ "/toggle", "O'chirish" if p.is_active else "Yoqish", csrf) }}{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="9" class="empty">Promokod yo'q.{% if ctx.can('admin') %} <a href="/admin/promos/new">Birinchisini yarating</a>.{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}

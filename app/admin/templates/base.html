@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Admin{% endblock %} · IntizomAI</title>
+  <link rel="stylesheet" href="/admin/static/admin.css?v=1">
+  <script src="/admin/static/admin.js?v=1" defer></script>
+</head>
+<body>
+{% if ctx %}
+{% set nav = [
+  ("Asosiy", [
+    ("/admin", "▦", "Bosh sahifa", "support"),
+    ("/admin/users", "👤", "Foydalanuvchilar", "support"),
+    ("/admin/premium", "👑", "Premium", "support"),
+    ("/admin/groups", "👥", "Guruhlar", "support"),
+  ]),
+  ("Sotuv", [
+    ("/admin/payments", "💳", "To'lovlar", "support"),
+    ("/admin/promos", "🎟", "Promokodlar", "support"),
+    ("/admin/plans", "🏷", "Tariflar", "support"),
+  ]),
+  ("Aloqa", [
+    ("/admin/announcements", "📢", "E'lonlar", "support"),
+  ]),
+  ("Boshqaruv", [
+    ("/admin/settings", "⚙", "Sozlamalar", "support"),
+    ("/admin/admins", "🛡", "Adminlar", "owner"),
+    ("/admin/audit", "🧾", "Audit jurnali", "admin"),
+    ("/admin/system", "🩺", "Tizim holati", "admin"),
+  ]),
+] %}
+<div class="layout">
+  <aside class="side">
+    <a class="brand" href="/admin"><span class="brand-mark">I</span> IntizomAI Admin</a>
+    <nav class="nav">
+      {% for sec, items in nav %}
+        <div class="nav-sec">{{ sec }}</div>
+        {% for href, ic, label, role in items %}{% if ctx.can(role) %}
+          {% set on = (path == href or path == href + '/') if href == '/admin' else path.startswith(href) %}
+          <a href="{{ href }}" class="{{ 'on' if on }}"><span class="ic">{{ ic }}</span>{{ label }}</a>
+        {% endif %}{% endfor %}
+      {% endfor %}
+    </nav>
+    <div class="side-foot">
+      <div><b>{{ ctx.admin.full_name or ctx.admin.username }}</b></div>
+      <div class="faint">@{{ ctx.admin.username }} · {{ ROLE_LABELS[ctx.admin.role] }}</div>
+      <div class="row" style="margin-top:10px">
+        <a href="/admin/account" class="btn sm">Hisobim</a>
+        <form method="post" action="/admin/logout" class="inline-form">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <button class="btn sm ghost" type="submit">Chiqish</button>
+        </form>
+      </div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="top">
+      <div class="row">
+        <button class="btn sm burger" type="button" data-burger aria-label="Menyu">☰</button>
+        <div>
+          <h1>{% block heading %}{% endblock %}</h1>
+          {% block sub %}{% endblock %}
+        </div>
+      </div>
+      <div class="row">{% block actions %}{% endblock %}</div>
+    </div>
+    {% if flash %}<div class="flash {{ flash.kind }}" role="status">{{ flash.msg }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block bare %}{% endblock %}
+{% endif %}
+</body>
+</html>

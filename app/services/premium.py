@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import config
+from app.services import runtime_settings as rs
 from app.models import Goal, Habit, Plan, Subscription, User, utcnow
 from app.security import as_utc
 from app.services.clock import today
@@ -118,7 +118,7 @@ async def plan_limit(db: AsyncSession, user: User, on_date: date, adding: int = 
     used = await db.scalar(
         select(func.count(Plan.id)).where(Plan.user_id == user.id, Plan.plan_date == on_date)
     ) or 0
-    lim = config.FREE_DAILY_PLAN_LIMIT
+    lim = rs.get("FREE_DAILY_PLAN_LIMIT")
     return Limit(used + adding <= lim, used, lim)
 
 
@@ -128,7 +128,7 @@ async def habit_limit(db: AsyncSession, user: User, adding: int = 1) -> Limit:
     used = await db.scalar(
         select(func.count(Habit.id)).where(Habit.user_id == user.id, Habit.archived.is_(False))
     ) or 0
-    lim = config.FREE_HABIT_LIMIT
+    lim = rs.get("FREE_HABIT_LIMIT")
     return Limit(used + adding <= lim, used, lim)
 
 
@@ -136,7 +136,7 @@ async def goal_limit(db: AsyncSession, user: User, adding: int = 1) -> Limit:
     if is_premium(user):
         return UNLIMITED
     used = await db.scalar(select(func.count(Goal.id)).where(Goal.user_id == user.id)) or 0
-    lim = config.FREE_GOAL_LIMIT
+    lim = rs.get("FREE_GOAL_LIMIT")
     return Limit(used + adding <= lim, used, lim)
 
 
@@ -144,7 +144,7 @@ def ai_limit_peek(user: User) -> Limit:
     if is_premium(user):
         return UNLIMITED
     used = user.ai_msgs_count if user.ai_msgs_date == today() else 0
-    lim = config.FREE_AI_DAILY_LIMIT
+    lim = rs.get("FREE_AI_DAILY_LIMIT")
     return Limit(used < lim, used, lim)
 
 

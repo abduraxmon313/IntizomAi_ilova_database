@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}{{ p.code|upper }}{% endblock %}
+{% block heading %}<span class="mono">{{ p.code|upper }}</span>{% endblock %}
+{% block sub %}<div class="sub">{{ KINDS[p.kind] }} · yaratgan: {{ p.created_by or "—" }}, {{ p.created_at|fdt }}</div>{% endblock %}
+{% block actions %}{{ m.promo_badge(status, STATUSES) }}<button class="btn" type="button" data-copy="{{ p.code|upper }}">Nusxa olish</button><a class="btn" href="/admin/promos">← Promokodlar</a>{% endblock %}
+{% block content %}
+{% set paid = (orders | selectattr(0, 'equalto', 'paid') | list) %}
+<div class="grid g4">
+  <div class="stat"><div class="lbl">Ishlatilgan</div><div class="val">{{ p.used_count|num }}</div><div class="hint">{% if p.max_uses %}limit {{ p.max_uses|num }} · qoldi {{ [p.max_uses - p.used_count, 0]|max|num }}{% else %}limit yo'q{% endif %}</div></div>
+  <div class="stat"><div class="lbl">Qiymati</div><div class="val sm">{% if p.kind == 'free' %}🎁 {{ p.days }} kun{% elif p.kind == 'bonus' %}+{{ p.days }} kun{% else %}−{{ p.discount_percent }}%{% if p.days %} · +{{ p.days }} kun{% endif %}{% endif %}</div></div>
+  <div class="stat gold"><div class="lbl">Shu kod bilan daromad</div><div class="val sm">{{ (paid[0][2] if paid else 0)|tiyin }}</div><div class="hint">{{ paid[0][1] if paid else 0 }} ta to'lov{% if paid and paid[0][3] %} · chegirma {{ (paid[0][3] - paid[0][2])|tiyin }}{% endif %}</div></div>
+  <div class="stat"><div class="lbl">Muddat</div><div class="val sm">{{ p.expires_at|fdate if p.expires_at else "Muddatsiz" }}</div><div class="hint">{% if p.starts_at %}boshlanish: {{ p.starts_at|fdate }}{% else %}darhol amal qiladi{% endif %}</div></div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  {% if ctx.can('admin') %}
+  <form method="post" action="/admin/promos/{{ p.id }}" class="card">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="kind" value="{{ p.kind }}">
+    <h2>Tahrirlash</h2>
+    <div class="form-grid">
+      {% if p.kind == 'discount' %}<div class="field"><label>Chegirma, %</label><input type="number" name="discount_percent" min="1" max="99" value="{{ p.discount_percent }}"></div>{% endif %}
+      {% if p.kind == 'free' %}<div class="field"><label>Premium kunlari</label><input type="number" name="days_free" min="1" max="3650" value="{{ p.days }}"></div>
+      {% else %}<div class="field"><label>Bonus kunlar</label><input type="number" name="days_bonus" min="0" max="3650" value="{{ p.days }}"></div>{% endif %}
+      <div class="field"><label>Umumiy limit</label><input type="number" name="max_uses" min="0" value="{{ p.max_uses }}"><div class="help">0 — cheksiz</div></div>
+      <div class="field"><label>Boshlanish</label><input type="date" name="starts_at" value="{{ p.starts_at|ymd }}"></div>
+      <div class="field"><label>Tugash</label><input type="date" name="expires_at" value="{{ p.expires_at|ymd }}"></div>
+      <div class="field full"><label>Izoh</label><input type="text" name="note" maxlength="200" value="{{ p.note or '' }}"></div>
+      {% if p.kind != 'free' %}
+      <div class="field full"><label>Tariflar</label>
+        <div class="checks">{% for pl in plans %}<label class="check"><input type="checkbox" name="plan_keys" value="{{ pl.key }}" {{ 'checked' if pl.key in selected }}> {{ pl.title }}</label>{% endfor %}</div>
+        <div class="help">Hech biri belgilanmasa — hammasiga.</div></div>
+      {% endif %}
+      <div class="field full"><label class="check"><input type="checkbox" name="is_active" value="1" {{ 'checked' if p.is_active }}> Faol</label></div>
+    </div>
+    <div class="row"><button class="btn primary" type="submit">Saqlash</button></div>
+  </form>
+  {% else %}
+  <div class="card"><h2>Ma'lumot</h2><dl class="kv"><dt>Tariflar</dt><dd>{{ selected|sort|join(', ') or 'hammasi' }}</dd><dt>Izoh</dt><dd>{{ p.note or '—' }}</dd></dl></div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Buyurtmalar (shu kod bilan)</h2>
+    <div class="mini-stats">
+      {% for st_, n, s, orig in orders %}<div><b>{{ n|num }}</b><span>{{ STATUS_LABELS.get(st_, st_) }} · {{ s|tiyin }}</span></div>{% else %}<div><b>0</b><span>to'lov yo'q</span></div>{% endfor %}
+    </div>
+    {% if ctx.can('admin') %}
+    <details class="danger-zone" style="margin-top:18px">
+      <summary>O'chirish</summary>
+      <p class="muted small">Faqat hali ishlatilmagan promokodni o'chirish mumkin. Ishlatilganini «Faol» belgisini olib tashlab to'xtating.</p>
+      {{ m.post("/admin/promos/" ~ p.id ~ "/delete", "Promokodni o'chirish", csrf, cls="btn danger", confirm="Promokodni o'chirasizmi?") }}
+    </details>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card flush" style="margin-top:16px">
+  <div class="card-head" style="padding:16px 16px 0"><h2>Kim ishlatgan</h2><span class="muted small">oxirgi 200 ta</span></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Foydalanuvchi</th><th>Turi</th><th class="right">Kun</th><th class="right">To'lov</th><th>Sana</th></tr></thead>
+    <tbody>
+    {% for r, u in redemptions %}
+      <tr><td>{{ m.person(u) }}</td><td class="small">{% if r.order_id %}<a href="/admin/payments/{{ r.order_id }}">sotib olgan</a>{% else %}bepul faollashtirgan{% endif %}</td>
+        <td class="right num">{{ r.days or '—' }}</td><td class="right num">{{ r.amount|tiyin if r.amount else '—' }}</td><td class="small nowrap">{{ r.created_at|fdt }}</td></tr>
+    {% else %}<tr><td colspan="5" class="empty">Hali hech kim ishlatmagan.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

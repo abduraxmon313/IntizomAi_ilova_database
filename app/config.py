@@ -138,6 +138,13 @@ RATE_LIMIT_IP = _int("RATE_LIMIT_IP", 600)       # anonim (CGNAT ortida ko'p oda
 RATE_LIMIT_AUTH = _int("RATE_LIMIT_AUTH", 30)    # kirish urinishlari / IP / daqiqa
 RATE_LIMIT_WINDOW = 60
 
+# ── Admin panel (/admin) ────────────────────────────────────────────────────
+# Birinchi kirish uchun: adminlar jadvali bo'sh bo'lsa shu login "Egasi" bo'lib yaratiladi.
+ADMIN_USERNAME = _str("ADMIN_USERNAME")
+ADMIN_PASSWORD = _str("ADMIN_PASSWORD")
+# Parolni unutsangiz: true qiling, deploy qiling, kiring, keyin o'chiring.
+ADMIN_RESET_PASSWORD = _bool("ADMIN_RESET_PASSWORD", False)
+
 # Fon vazifalari (kun yakuni, tozalash). Bir nechta replika bo'lsa faqat bittasida yoqing.
 RUN_JOBS = _bool("RUN_JOBS", True)
 

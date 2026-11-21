@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import config
+from app.services import runtime_settings as rs
 from app.models import AuthIdentity, HabitLog, Plan, ReferralClaim, User, utcnow
 from app.services import premium
 from app.services.clock import today
@@ -39,7 +39,7 @@ async def maybe_activate(db: AsyncSession, invitee: User) -> None:
     """Reja/odat bajarilganda chaqiriladi. Idempotent; xato asosiy amalni buzmaydi."""
     if invitee.referred_by_id is None or invitee.referral_activated_at is not None:
         return
-    if await _distinct_active_days(db, invitee.id) < config.REFERRAL_ACTIVATION_DAYS:
+    if await _distinct_active_days(db, invitee.id) < rs.get("REFERRAL_ACTIVATION_DAYS"):
         return
 
     invitee.referral_activated_at = utcnow()
@@ -53,13 +53,13 @@ async def maybe_activate(db: AsyncSession, invitee: User) -> None:
     claimed = bool(hashes) and bool(
         await db.scalar(select(ReferralClaim.identity_hash).where(ReferralClaim.identity_hash.in_(hashes)))
     )
-    if not claimed and hashes and config.REFERRAL_INVITEE_REWARD_DAYS > 0:
+    if not claimed and hashes and rs.get("REFERRAL_INVITEE_REWARD_DAYS") > 0:
         await db.execute(
             pg_insert(ReferralClaim).values([{"identity_hash": h} for h in hashes]).on_conflict_do_nothing()
         )
         await db.commit()
         await premium.grant_days(
-            db, invitee, config.REFERRAL_INVITEE_REWARD_DAYS,
+            db, invitee, rs.get("REFERRAL_INVITEE_REWARD_DAYS"),
             source="referral_invitee", reference=f"refi:{invitee.id}",
         )
 
@@ -69,12 +69,12 @@ async def maybe_activate(db: AsyncSession, invitee: User) -> None:
         return
     referrer.referral_count = (referrer.referral_count or 0) + 1
     await db.commit()
-    while referrer.referral_count - (referrer.referral_rewards_given or 0) >= config.REFERRAL_THRESHOLD:
-        batch = (referrer.referral_rewards_given or 0) + config.REFERRAL_THRESHOLD
+    while referrer.referral_count - (referrer.referral_rewards_given or 0) >= rs.get("REFERRAL_THRESHOLD"):
+        batch = (referrer.referral_rewards_given or 0) + rs.get("REFERRAL_THRESHOLD")
         referrer.referral_rewards_given = batch
         await db.commit()
         await premium.grant_days(
-            db, referrer, config.REFERRAL_REWARD_DAYS,
+            db, referrer, rs.get("REFERRAL_REWARD_DAYS"),
             source="referral", reference=f"ref:{referrer.id}:{batch}",
         )
     log.info("Referral faollashdi invitee=%s referrer=%s count=%s", invitee.id, referrer.id, referrer.referral_count)

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import config
+from app.services import runtime_settings as rs
 from app.db import get_session
 from app.errors import fail
 from app.models import User
@@ -60,13 +60,13 @@ async def list_groups(user: User = Depends(onboarded_user), db: AsyncSession = D
     return {
         "groups": await svc.list_my_groups(db, user),
         "invites_count": await svc.pending_invites_count(db, user),
-        "can_create": premium.is_premium(user) or not config.GROUP_CREATE_PREMIUM_ONLY,
+        "can_create": premium.is_premium(user) or not rs.get("GROUP_CREATE_PREMIUM_ONLY"),
     }
 
 
 @router.post("/groups")
 async def create_group(body: GroupIn, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
-    if config.GROUP_CREATE_PREMIUM_ONLY and not premium.is_premium(user):
+    if rs.get("GROUP_CREATE_PREMIUM_ONLY") and not premium.is_premium(user):
         fail(402, "group_create_premium")
     g = await svc.create_group(db, user, body.name, body.description)
     return {"id": g.id, "name": g.name, "description": g.description, "member_count": 1, "is_owner": True}

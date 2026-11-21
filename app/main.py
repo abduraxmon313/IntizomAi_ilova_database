@@ -15,7 +15,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app import config, jobs
+from app import admin, config, jobs
 from app.i18n import current_lang, pick_lang, t
 from app.routers import ai, auth, billing, goals, groups, habits, pages, plans, profile, stats
 from app.security import rate_key, rate_limited
@@ -34,6 +34,21 @@ async def lifespan(app: FastAPI):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+async def _startup() -> None:
+    """Standart tariflar, admin paneldagi sozlamalar va birinchi admin (env orqali)."""
+    from app.admin import auth as admin_auth
+    from app.db import SessionLocal
+    from app.services import pricing, runtime_settings
+
+    try:
+        async with SessionLocal() as db:
+            await pricing.ensure_defaults(db)
+            await runtime_settings.load(db)
+            await admin_auth.bootstrap(db)
+    except Exception:
+        log.exception("Ishga tushish vazifalari bajarilmadi (migratsiya qo'llanganmi?)")
 
 
 app = FastAPI(
@@ -77,6 +92,13 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error(request: Request, exc: StarletteHTTPException):
+    if request.url.path.startswith("/admin"):
+        from app.admin import error_page
+
+        msg = exc.detail if isinstance(exc.detail, str) and exc.detail not in ("Not Found", "Method Not Allowed") else (
+            "Sahifa topilmadi." if exc.status_code in (404, 405) else "Xatolik yuz berdi."
+        )
+        return error_page(request, exc.status_code, msg)
     detail = exc.detail
     if not isinstance(detail, str) or detail in ("Not Found", "Method Not Allowed"):
         detail = t("not_found") if exc.status_code in (404, 405) else t("server_error")
@@ -86,6 +108,10 @@ async def http_error(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(Exception)
 async def unhandled(request: Request, exc: Exception):
     log.exception("Kutilmagan xato: %s %s", request.method, request.url.path)
+    if request.url.path.startswith("/admin"):
+        from app.admin import error_page
+
+        return error_page(request, 500, "Serverda kutilmagan xato. Jurnal (log) yozildi — qayta urinib ko'ring.")
     return JSONResponse(status_code=500, content={"detail": t("server_error")})
 
 
@@ -93,3 +119,4 @@ API = "/api/v1"
 for r in (auth, profile, plans, habits, goals, stats, ai, groups, billing):
     app.include_router(r.router, prefix=API)
 app.include_router(pages.router)
+admin.install(app)

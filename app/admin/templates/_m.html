@@ -1,0 +1,54 @@
+{# Umumiy makrolar #}
+
+{% macro post(action, label, csrf, cls="btn sm", confirm=None, fields={}) -%}
+<form method="post" action="{{ action }}" class="inline-form"{% if confirm %} data-confirm="{{ confirm }}"{% endif %}>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <button class="{{ cls }}" type="submit">{{ label }}</button>
+</form>
+{%- endmacro %}
+
+{% macro pager(page) -%}
+{% if page.total %}
+<div class="pager">
+  <span>Jami <b class="num">{{ page.total|num }}</b>{% if page.pages > 1 %} · {{ page.page }}/{{ page.pages }}-sahifa{% endif %}</span>
+  {% if page.pages > 1 %}
+  <span class="pg">
+    {% if page.page > 1 %}<a class="btn sm" href="{{ page.url(1) }}">«</a><a class="btn sm" href="{{ page.url(page.page - 1) }}">‹ Oldingi</a>{% endif %}
+    {% if page.page < page.pages %}<a class="btn sm" href="{{ page.url(page.page + 1) }}">Keyingi ›</a><a class="btn sm" href="{{ page.url(page.pages) }}">»</a>{% endif %}
+  </span>
+  {% endif %}
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro bars(series, cls="", fmt="num") -%}
+{% set mx = (series | map(attribute="v") | max) or 1 %}
+<div class="chart" role="img" aria-label="Kunlik diagramma">
+  {% for p in series %}
+    <div class="b {{ cls }} {{ 'zero' if not p.v }}" style="height: {{ [2, (p.v / mx * 100)|round(1)]|max }}%" title="{{ p.d|fdate }}: {{ p.v|num }}"></div>
+  {% endfor %}
+</div>
+<div class="chart-axis"><span>{{ series[0].d|fdate }}</span><span>{{ series[-1].d|fdate }}</span></div>
+{%- endmacro %}
+
+{% macro avatar(u, cls="") -%}
+<span class="avatar {{ cls }}">{% if u.avatar_key %}<img src="/api/v1/avatars/{{ u.avatar_key }}" alt="">{% elif u.provider_photo_url %}<img src="{{ u.provider_photo_url }}" alt="" referrerpolicy="no-referrer">{% else %}{{ ((u.full_name or u.username or '?')[:1])|upper }}{% endif %}</span>
+{%- endmacro %}
+
+{% macro person(u, sub=None) -%}
+{% if u %}
+<a class="person" href="/admin/users/{{ u.id }}">
+  {{ avatar(u) }}
+  <span><span class="nm">{{ u.full_name or "Ismsiz" }}</span><span class="sub">{% if u.username %}@{{ u.username }} · {% endif %}#{{ u.id }}{% if sub %} · {{ sub }}{% endif %}</span></span>
+</a>
+{% else %}<span class="faint">O'chirilgan foydalanuvchi</span>{% endif %}
+{%- endmacro %}
+
+{% macro order_badge(status, labels) -%}
+<span class="badge {{ {'paid':'ok','pending':'warn','failed':'err','cancelled':'','creating':'warn'}.get(status, '') }}">{{ labels.get(status, status) }}</span>
+{%- endmacro %}
+
+{% macro promo_badge(st, labels) -%}
+<span class="badge {{ {'active':'ok','scheduled':'brand','inactive':'','expired':'err','exhausted':'warn'}.get(st, '') }}">{{ labels.get(st, st) }}</span>
+{%- endmacro %}

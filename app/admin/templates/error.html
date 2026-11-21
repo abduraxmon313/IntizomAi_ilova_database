@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Xato{% endblock %}
+{% block heading %}{{ {403: "Ruxsat yo'q", 404: "Topilmadi", 429: "Juda ko'p so'rov"}.get(status_code, "Xatolik") }}{% endblock %}
+{% block content %}
+<div class="card">
+  <p>{{ message }}</p>
+  <div class="row"><a class="btn" href="/admin">Bosh sahifaga</a></div>
+</div>
+{% endblock %}
+{% block bare %}
+<div class="auth-wrap"><div class="auth card">
+  <h2>{{ status_code }} — Xatolik</h2>
+  <p class="muted">{{ message }}</p>
+  <a class="btn primary" href="/admin/login">Kirish sahifasi</a>
+</div></div>
+{% endblock %}

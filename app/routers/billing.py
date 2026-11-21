@@ -14,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import config
 from app.db import get_session
 from app.errors import fail
-from app.models import AuthIdentity, PaymentOrder, User, utcnow
+from app.models import PaymentOrder, User, utcnow
 from app.security import limit_action, onboarded_user, verify_signature
-from app.services import billing, premium
-from app.services.referrals import identity_hash
+from app.services import billing, premium, pricing, promos
+from app.services import runtime_settings as rs
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["billing"])
@@ -53,15 +53,16 @@ def _remote_fail(e: billing.BillingError):
     fail(502, "billing_failed")
 
 
-def _status(user: User, plan_key: str | None) -> dict:
+async def _status(db: AsyncSession, user: User, plan_key: str | None) -> dict:
     active = premium.is_premium(user)
     until = user.premium_until
+    plan = await pricing.get_plan(db, plan_key, active_only=False) if plan_key else None
     return {
         "is_premium": active,
         "premium_until": until.astimezone(config.TIMEZONE).date().isoformat() if until and active else None,
         "days_left": premium.days_left(user),
         "plan": plan_key,
-        "plan_title": premium.PLAN_TITLES.get(plan_key or ""),
+        "plan_title": plan.title if plan else premium.PLAN_TITLES.get(plan_key or ""),
     }
 
 
@@ -71,20 +72,20 @@ async def subscription(
 ):
     if promo_code:
         limit_action(f"promo-check:{user.id}", 20, 600)
-    cat = await billing.catalog(promo_code)
+    cat = await billing.catalog(db, user, promo_code)
     return {
-        **_status(user, await premium.current_plan_key(db, user)),
+        **await _status(db, user, await premium.current_plan_key(db, user)),
         **cat,
         "free_limits": {
-            "plans_per_day": config.FREE_DAILY_PLAN_LIMIT,
-            "habits": config.FREE_HABIT_LIMIT,
-            "goals": config.FREE_GOAL_LIMIT,
-            "ai_per_day": config.FREE_AI_DAILY_LIMIT,
+            "plans_per_day": rs.get("FREE_DAILY_PLAN_LIMIT"),
+            "habits": rs.get("FREE_HABIT_LIMIT"),
+            "goals": rs.get("FREE_GOAL_LIMIT"),
+            "ai_per_day": rs.get("FREE_AI_DAILY_LIMIT"),
         },
     }
 
 
-def _order_json(o: PaymentOrder, user: User | None = None) -> dict:
+async def _order_json(db: AsyncSession, o: PaymentOrder, user: User | None = None) -> dict:
     som = (o.amount or 0) // 100
     out = {
         "order_id": o.public_id,
@@ -99,7 +100,7 @@ def _order_json(o: PaymentOrder, user: User | None = None) -> dict:
         "paid_at": o.paid_at.isoformat() if o.paid_at else None,
     }
     if user is not None:
-        out["subscription"] = _status(user, o.plan_key if o.status == "paid" else None)
+        out["subscription"] = await _status(db, user, o.plan_key if o.status == "paid" else None)
     return out
 
 
@@ -107,14 +108,30 @@ def _order_json(o: PaymentOrder, user: User | None = None) -> dict:
 async def checkout(body: CheckoutIn, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
     if not config.BILLING_ENABLED:
         fail(503, "billing_disabled")
+    if not rs.get("SALES_ENABLED"):
+        fail(503, "sales_paused")
     limit_action(f"checkout:{user.id}", 10, 600)
-    cat = await billing.catalog()
-    if body.plan not in {p["key"] for p in cat["plans"]}:
+    plan = await pricing.get_plan(db, body.plan)
+    if plan is None:
         fail(422, "plan_unknown")
+    remote = await billing.remote_status()
     provider = body.provider.strip().lower()
-    if cat["providers"] and provider not in {p["key"] for p in cat["providers"]}:
+    if remote["providers"] and provider not in {p["key"] for p in remote["providers"]}:
         fail(422, "provider_unknown")
-    promo = (body.promo_code or "").strip() or None
+
+    promo = None
+    code = (body.promo_code or "").strip()
+    if code:
+        try:
+            promo = await promos.validate_for_user(db, user, code)
+        except promos.PromoError as e:
+            fail(422, e.key)
+        if promo.kind == "free":
+            fail(422, "promo_free_at_checkout")
+        if not promos.applies_to(promo, plan.key):
+            fail(422, "promo_plan_mismatch")
+    q = promos.quote(plan, promo)
+    amount = q.amount * 100
 
     # Ikki marta bosilsa — yaqindagi xuddi shunday kutilayotgan buyurtmani qaytaramiz.
     recent = await db.scalar(
@@ -122,9 +139,11 @@ async def checkout(body: CheckoutIn, user: User = Depends(onboarded_user), db: A
         .where(
             PaymentOrder.user_id == user.id,
             PaymentOrder.status == "pending",
-            PaymentOrder.plan_key == body.plan,
+            PaymentOrder.plan_key == plan.key,
             PaymentOrder.provider == provider,
-            PaymentOrder.promo_code.is_(None) if promo is None else PaymentOrder.promo_code == promo,
+            PaymentOrder.amount == amount,
+            PaymentOrder.days == q.days,
+            PaymentOrder.promo_id.is_(None) if promo is None else PaymentOrder.promo_id == promo.id,
             PaymentOrder.created_at > utcnow() - timedelta(minutes=15),
             PaymentOrder.checkout_url.is_not(None),
         )
@@ -132,14 +151,19 @@ async def checkout(body: CheckoutIn, user: User = Depends(onboarded_user), db: A
         .limit(1)
     )
     if recent is not None:
-        return _order_json(recent)
+        return await _order_json(db, recent)
 
     order = PaymentOrder(
         public_id="ap" + secrets.token_hex(12),
         user_id=user.id,
-        plan_key=body.plan,
+        plan_key=plan.key,
         provider=provider,
-        promo_code=promo,
+        promo_code=promo.code if promo else None,
+        promo_id=promo.id if promo else None,
+        amount=amount,
+        original_amount=q.original * 100,
+        days=q.days,
+        bonus_days=q.bonus_days,
         status="creating",
     )
     db.add(order)
@@ -148,7 +172,7 @@ async def checkout(body: CheckoutIn, user: User = Depends(onboarded_user), db: A
 
     return_url = f"{config.PUBLIC_BASE_URL}/pay/return?o={order.public_id}" if config.PUBLIC_BASE_URL else None
     try:
-        data = await billing.create_remote_order(order, user, return_url)
+        data = await billing.create_remote_order(order, user, plan.title, return_url)
     except billing.BillingError as e:
         order.status = "failed"
         order.error = (e.detail or str(e))[:300]
@@ -161,13 +185,18 @@ async def checkout(body: CheckoutIn, user: User = Depends(onboarded_user), db: A
         order.error = "no checkout_url"
         await db.commit()
         fail(502, "billing_failed")
+    if int(data.get("amount") or 0) != amount or int(data.get("days") or 0) != q.days:
+        # Bot eski versiyada (narxni o'zi hisoblayapti) — foydalanuvchi boshqa summa to'lamasin.
+        order.status = "failed"
+        order.error = f"bot summa/kun mos emas: {data.get('amount')}/{data.get('days')}"[:300]
+        await db.commit()
+        log.error("Bot partner API ilova narxini qabul qilmadi (bot yangilanmagan?): %s", order.error)
+        fail(502, "billing_failed")
     order.external_id = str(data["external_id"])
     order.checkout_url = str(data["checkout_url"])
-    order.amount = int(data.get("amount") or 0)
-    order.days = int(data.get("days") or 0) or None
     order.status = "pending"
     await db.commit()
-    return _order_json(order)
+    return await _order_json(db, order)
 
 
 @router.get("/payments/{order_id}")
@@ -182,31 +211,19 @@ async def payment_status(order_id: str, user: User = Depends(onboarded_user), db
         await billing.sync_from_remote(db, order)
         await db.refresh(order)
     await db.refresh(user)
-    return _order_json(order, user)
+    return await _order_json(db, order, user)
 
 
 @router.post("/promo/redeem")
 async def redeem_promo(body: PromoIn, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
-    """Bepul ("-" turidagi) promokod — to'lovsiz Premium kunlari. Chegirma promokodi checkout'da qo'llanadi."""
-    if not config.BILLING_ENABLED:
-        fail(503, "billing_disabled")
+    """Bepul promokod — to'lovsiz Premium kunlari. Chegirma/bonus promokodi checkout'da qo'llanadi."""
     limit_action(f"promo:{user.id}", 10, 3600)
-    ident = await db.scalar(
-        select(AuthIdentity).where(AuthIdentity.user_id == user.id).order_by(AuthIdentity.id).limit(1)
-    )
-    # Hisob o'chirib qayta ochilsa ham bir xil — bir promokodni ikki marta olib bo'lmaydi.
-    customer_ref = identity_hash(ident.provider, ident.subject) if ident else f"user:{user.id}"
     try:
-        data = await billing.redeem_remote_promo(body.code, user, customer_ref)
-    except billing.BillingError as e:
-        _remote_fail(e)
-    days = int(data.get("days") or 0)
-    if days <= 0:
-        fail(422, "promo_invalid")
-    code = str(data.get("code") or body.code).lower()
-    await premium.grant_days(db, user, days, source="promo", reference=f"promo:{code}:{customer_ref}")
+        days = await promos.redeem_free(db, user, body.code)
+    except promos.PromoError as e:
+        fail(409 if e.key == "promo_already_used" else 422, e.key)
     await db.refresh(user)
-    return {"days": days, "subscription": _status(user, await premium.current_plan_key(db, user))}
+    return {"days": days, "subscription": await _status(db, user, await premium.current_plan_key(db, user))}
 
 
 # ─────────────────────────────────────────────────────────────
