@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Tizim holati{% endblock %}
+{% block heading %}Tizim holati{% endblock %}
+{% block sub %}<div class="sub">Muhit: {{ env }} · vaqt mintaqasi: {{ tz }} · PostgreSQL {{ pg_version }} · baza hajmi {{ db_size }}</div>{% endblock %}
+{% block content %}
+<div class="grid g2">
+  <div class="card">
+    <div class="card-head"><h2>Bot (Paylov ko'prigi)</h2>{{ m.post("/admin/system/check-bot", "↻ Tekshirish", csrf) }}</div>
+    <dl class="kv">
+      <dt>Manzil</dt><dd class="mono small">{{ billing_url or "— (BILLING_BASE_URL yo'q)" }}</dd>
+      <dt>Aloqa</dt><dd>{% if remote.reachable %}<span class="badge ok">Bor</span>{% else %}<span class="badge err">Yo'q</span> <span class="small muted">{{ remote.error }}</span>{% endif %}</dd>
+      <dt>Paylov to'lovi</dt><dd>{% if remote.payments_enabled %}<span class="badge ok">Yoqilgan</span>{% else %}<span class="badge warn">O'chiq</span>{% endif %}</dd>
+      <dt>To'lov usullari</dt><dd>{% for p in remote.providers %}<span class="badge">{{ p.title }}</span> {% else %}—{% endfor %}</dd>
+    </dl>
+    <p class="muted small" style="margin-top:12px">Tarif, narx va promokodlar ilova bazasida. Bot faqat Paylov checkout'ini yaratadi va to'lov natijasini imzolangan xabar bilan qaytaradi.</p>
+  </div>
+  <div class="card">
+    <h2>Sozlamalar (Railway Variables)</h2>
+    <table><tbody>
+      {% for name, ok, desc in checks %}<tr><td><span class="badge {{ 'ok' if ok else 'warn' }}">{{ '✓' if ok else '!' }}</span> <b class="small">{{ name }}</b></td><td class="small muted">{{ desc }}</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+<div class="grid g2" style="margin-top:16px">
+  <div class="card">
+    <h2>Fon vazifalari holati</h2>
+    <dl class="kv">
+      {% for s in states %}<dt class="mono small">{{ s.key }}</dt><dd class="small">{{ s.value }} <span class="faint">· {{ s.updated_at|ago }}</span></dd>{% else %}<dt>—</dt><dd class="muted">Hali ishlamagan</dd>{% endfor %}
+      <dt>Ilova sessiyalari</dt><dd>{{ active_sessions|num }} ta faol · {{ users|num }} ta foydalanuvchi</dd>
+    </dl>
+  </div>
+  <div class="card flush">
+    <div class="card-head" style="padding:16px 16px 0"><h2>Oxirgi xato to'lovlar</h2></div>
+    <table><tbody>
+      {% for o in failed_orders %}<tr><td><a class="mono small" href="/admin/payments/{{ o.id }}">{{ o.public_id }}</a></td><td class="small muted">{{ o.error }}</td><td class="small nowrap">{{ o.created_at|ago }}</td></tr>
+      {% else %}<tr><td class="empty">Xato to'lov yo'q 👍</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endblock %}

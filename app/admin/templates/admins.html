@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Adminlar{% endblock %}
+{% block heading %}Adminlar{% endblock %}
+{% block sub %}<div class="sub">Egasi — hammasi · Admin — kundalik boshqaruv (adminlarni boshqarishdan tashqari) · Yordamchi — ko'rish, xabar yuborish, sessiyalarni yopish</div>{% endblock %}
+{% block content %}
+{% if new_password %}
+<div class="card" style="margin-bottom:16px;border-color:var(--gold)">
+  <h2>🔑 {{ new_password[0] }} uchun vaqtinchalik parol</h2>
+  <div class="row"><div class="secret-box" style="flex:1">{{ new_password[1] }}</div><button class="btn" type="button" data-copy="{{ new_password[1] }}">Nusxa olish</button></div>
+  <p class="muted small">Faqat hozir ko'rinadi. Birinchi kirishda u yangi parol o'rnatishi shart.</p>
+</div>
+{% endif %}
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Admin</th><th>Rol</th><th>2FA</th><th>Oxirgi kirish</th><th>Holat</th><th></th></tr></thead>
+    <tbody>
+    {% for a in admins %}
+      <tr>
+        <td><b>{{ a.full_name or a.username }}</b><div class="faint small">@{{ a.username }}{% if a.id == ctx.admin.id %} · siz{% endif %}</div></td>
+        <td>
+          <form method="post" action="/admin/admins/{{ a.id }}/role" class="row">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <select name="role" data-autosubmit {{ 'disabled' if a.id == ctx.admin.id }}>{% for r in ROLES %}<option value="{{ r }}" {{ 'selected' if r == a.role }}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select>
+          </form>
+        </td>
+        <td>{% if a.totp_secret %}<span class="badge ok">Yoqilgan</span>{% else %}<span class="badge warn">Yo'q</span>{% endif %}</td>
+        <td class="small nowrap">{{ a.last_login_at|fdt }}<div class="faint">{{ active.get(a.id, 0) }} ta faol sessiya</div></td>
+        <td>{% if not a.is_active %}<span class="badge err">O'chirilgan</span>{% elif a.must_change_password %}<span class="badge warn">Parol kutilmoqda</span>{% elif a.locked_until %}<span class="badge warn">Qulflangan bo'lgan</span>{% else %}<span class="badge ok">Faol</span>{% endif %}</td>
+        <td class="actions">{% if a.id != ctx.admin.id %}
+          {{ m.post("/admin/admins/" ~ a.id ~ "/reset", "Parolni tiklash", csrf, confirm="Yangi vaqtinchalik parol yaratiladi, 2FA o'chadi va u tizimdan chiqariladi. Davom etasizmi?") }}
+          {{ m.post("/admin/admins/" ~ a.id ~ "/toggle", "O'chirish" if a.is_active else "Yoqish", csrf, cls="btn sm" ~ (" danger" if a.is_active else "")) }}
+          {{ m.post("/admin/admins/" ~ a.id ~ "/delete", "✕", csrf, cls="btn sm danger", confirm=a.username ~ " butunlay o'chirilsinmi? Audit jurnalida nomi qoladi.") }}
+        {% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<form method="post" action="/admin/admins/new" class="card" style="margin-top:16px">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <h2>+ Yangi admin</h2>
+  <div class="grid g4">
+    <div class="field"><label>Login</label><input type="text" name="username" maxlength="40" required autocomplete="off" autocapitalize="none"></div>
+    <div class="field"><label>Ismi</label><input type="text" name="full_name" maxlength="80"></div>
+    <div class="field"><label>Rol</label><select name="role">{% for r in ROLES %}<option value="{{ r }}" {{ 'selected' if r == 'admin' }}>{{ ROLE_LABELS[r] }}</option>{% endfor %}</select></div>
+    <div class="field" style="align-self:end"><button class="btn primary" type="submit">Qo'shish</button></div>
+  </div>
+  <p class="muted small">Vaqtinchalik parol yaratiladi va bir marta ko'rsatiladi. Uni Telegram'da shaxsan yuboring.</p>
+</form>
+{% endblock %}

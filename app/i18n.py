@@ -199,6 +199,21 @@ _M: dict[str, tuple[str, str, str]] = {
     "provider_unknown": ("Noma'lum to'lov usuli.", "Неизвестный способ оплаты.", "Unknown payment method."),
     "order_not_found": ("To'lov topilmadi.", "Платёж не найден.", "Payment not found."),
     "promo_invalid": ("Promokod yaroqsiz.", "Промокод недействителен.", "Invalid promo code."),
+    "promo_plan_mismatch": (
+        "Bu promokod tanlangan tarifga amal qilmaydi.",
+        "Этот промокод не действует для выбранного тарифа.",
+        "This promo code doesn't apply to the selected plan.",
+    ),
+    "sales_paused": (
+        "Sotuv vaqtincha to'xtatilgan. Birozdan keyin urinib ko'ring.",
+        "Продажи временно приостановлены. Попробуйте позже.",
+        "Sales are temporarily paused. Please try again later.",
+    ),
+    "account_banned": (
+        "Hisobingiz bloklangan. Savollar bo'lsa, qo'llab-quvvatlash xizmatiga yozing.",
+        "Ваш аккаунт заблокирован. Если есть вопросы, напишите в поддержку.",
+        "Your account has been blocked. Contact support if you have questions.",
+    ),
     "promo_not_found": ("Bunday promokod topilmadi.", "Такой промокод не найден.", "Promo code not found."),
     "promo_inactive": ("Promokod o'chirilgan.", "Промокод отключён.", "This promo code is disabled."),
     "promo_expired": ("Promokod muddati tugagan.", "Срок действия промокода истёк.", "This promo code has expired."),

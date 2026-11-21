@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Sozlamalar{% endblock %}
+{% block heading %}Sozlamalar{% endblock %}
+{% block sub %}<div class="sub">O'zgarish darhol kuchga kiradi. «Standart» — Railway Variables'dagi qiymat.</div>{% endblock %}
+{% block content %}
+<form method="post" action="/admin/settings" class="stack">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% for group, items in groups.items() %}
+  <div class="card">
+    <h2>{{ group }}</h2>
+    <div class="grid g2">
+      {% for s, value, default, overridden in items %}
+      <div class="field">
+        {% if s.kind == 'bool' %}
+          <label class="check"><input type="checkbox" name="{{ s.key }}" value="1" {{ 'checked' if value }} {{ 'disabled' if not ctx.can('admin') }}> {{ s.label }}</label>
+        {% else %}
+          <label for="{{ s.key }}">{{ s.label }}</label>
+          <input id="{{ s.key }}" type="number" name="{{ s.key }}" value="{{ value }}" min="{{ s.min }}" max="{{ s.max }}" {{ 'disabled' if not ctx.can('admin') }}>
+        {% endif %}
+        <div class="help">{{ s.help }} {% if overridden %}<span class="badge brand">o'zgartirilgan · standart: {{ ('ha' if default else "yo'q") if s.kind == 'bool' else default }}</span>{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if ctx.can('admin') %}<div><button class="btn primary" type="submit">Saqlash</button></div>{% endif %}
+</form>
+{% endblock %}

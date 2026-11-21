@@ -41,7 +41,7 @@ kerak, 403 ruxsat yo'q yoki onboarding kerak, 409 hozir mumkin emas, 422 noto'g'
 | Reja | `GET /plans?date_from&date_to`, `POST /plans`, `PUT/DELETE /plans/{id}` |
 | Odat | `GET/POST /habits`, `PUT/DELETE /habits/{id}`, `POST /habits/{id}/toggle {done?, date?}` |
 | Maqsad | `GET/POST /goals`, `PUT/DELETE /goals/{id}` |
-| Statistika | `GET /stats`, `GET /stats/activity?days=98`, `GET /leaderboard?period=all|week|streak`, `GET/POST /checkin` |
+| Statistika | `GET /stats`, `GET /stats/activity?days=98`, `GET /announcements`, `POST /announcements/{id}/seen`, `GET /leaderboard?period=all|week|streak`, `GET/POST /checkin` |
 | AI | `POST /ai/chat {messages}` |
 | Guruhlar | `GET/POST /groups`, `GET/PATCH/DELETE /groups/{id}`, `POST /groups/{id}/leave`, `POST /groups/{id}/transfer`, `POST /groups/{id}/invites {username}`, `DELETE /groups/{id}/invites/{invite_id}`, `GET /groups/{id}/members/{uid}?date=`, `DELETE /groups/{id}/members/{uid}`, `PUT /groups/{id}/members/{uid}/active`, `GET /groups/{id}/permissions`, `PUT /groups/{id}/permissions/{uid}`, `POST /groups/{id}/members/{uid}/plans`, `POST /groups/{id}/members/{uid}/habits` |
 | Takliflar | `GET /invites`, `POST /invites/{id}/accept`, `POST /invites/{id}/decline {block}`, `GET /blocks`, `DELETE /blocks/{uid}` |
@@ -49,6 +49,46 @@ kerak, 403 ruxsat yo'q yoki onboarding kerak, 409 hozir mumkin emas, 422 noto'g'
 | Ichki | `POST /internal/billing/callback` (faqat bot backend, HMAC imzo) |
 
 Brauzer sahifalari: `/privacy`, `/pay/return`, `/i/{username}` (taklif havolasi), `/health`.
+
+## Admin panel — `/admin`
+
+Brauzerda: `https://<domen>/admin`. Hamma ma'lumot shu servisning bazasidan. Bot faqat
+Paylov to'lovini o'tkazadi: tarif, narx va promokodlar shu yerda.
+
+**Birinchi kirish.** Railway Variables'ga qo'shing va deploy qiling:
+
+```
+ADMIN_USERNAME=login
+ADMIN_PASSWORD=kamida-10-belgili-parol
+```
+
+Adminlar jadvali bo'sh bo'lsa, shu login «Egasi» bo'lib yaratiladi. Keyingi adminlarni panelning
+o'zida qo'shasiz. Parolni unutsangiz: `ADMIN_RESET_PASSWORD=true` qo'yib deploy qiling, kiring,
+so'ng o'zgaruvchini o'chiring.
+
+| Bo'lim | Imkoniyatlar |
+|---|---|
+| Bosh sahifa | Foydalanuvchilar, Premium, konversiya, daromad (bugun/30 kun/jami), yangi va faol foydalanuvchilar, 30 kunlik grafiklar (faollik, ro'yxatdan o'tish, daromad), Premium manbalari, unvonlar, top ball/seriya, tugayotgan obunalar |
+| Foydalanuvchilar | Ism/@username/email/ID bo'yicha qidiruv, filtrlar va saralash, CSV eksport. Kartada: profil, natijalar, rejalar/odatlar/maqsadlar, obuna tarixi, to'lovlar, promokodlar, takliflar, guruhlar |
+| Foydalanuvchi amallari | Premium berish (tarif yoki kun) va bekor qilish, bloklash/blokdan chiqarish, barcha qurilmalardan chiqarish, ilova ichida shaxsiy xabar, AI limitini yangilash, seriya muzlatgichi, ism/username tahrirlash, hisobni o'chirish |
+| Premium | Faol obunachilar manba bo'yicha, tez tugaydiganlar |
+| To'lovlar | Holat bo'yicha filtr, qidiruv, CSV, tarif bo'yicha sotuvlar. Bot'dan holatni tekshirish, qo'lda faollashtirish (sabab bilan), bekor qilish |
+| Promokodlar | Bepul Premium, bonus kunlar, chegirma (1–99%), tariflarga cheklash, limit, boshlanish/tugash sanasi, bir martalik kodlar to'plami (1000 tagacha), kim ishlatgani va daromad, CSV, bot'dan import |
+| Tariflar | Narx, nom, kun, chizilgan eski narx, belgi, tartib, sotuvda/nofaol; yangi tarif qo'shish; bot'dagi narxlarni olish |
+| E'lonlar | Ilovada «Bugun» sahifasida: hammaga, bepul yoki Premium foydalanuvchilarga, vaqt oralig'i, tugma, ko'rishlar soni |
+| Guruhlar | Ro'yxat, a'zolar, takliflar, guruhni o'chirish (sabab bilan) |
+| Sozlamalar | Sotuvni yoqish/to'xtatish, bepul limitlar, reyting va guruh cheklovlari, guruh limitlari, taklif mukofotlari |
+| Adminlar | Rollar: Egasi, Admin, Yordamchi. Vaqtinchalik parol bilan qo'shish, parolni tiklash, o'chirish |
+| Hisobim | Parol, ikki bosqichli kirish (TOTP), faol sessiyalar |
+| Audit jurnali | Panelda kim, qachon, nima qilgani |
+| Tizim holati | Bot bilan aloqa, Railway Variables tekshiruvi, fon vazifalari, xato to'lovlar |
+
+Xavfsizlik: parol scrypt bilan saqlanadi. 5 marta noto'g'ri urinishda hisob 15 daqiqaga qulflanadi
+va IP bo'yicha limit bor. Sessiya cookie'si HttpOnly va SameSite=Strict, 2 soat harakatsizlikda tugaydi.
+Har formada CSRF tokeni tekshiriladi, sahifalar qat'iy CSP bilan beriladi. Muhim amallar audit jurnaliga yoziladi.
+
+**Muhim:** avval botni yangilang (IntizomAi_Bot_Pro_Copy) — u ilova yuborgan narxni qabul qiladi.
+Bot eski bo'lsa, checkout xavfsiz rad etiladi va foydalanuvchidan boshqa summa olinmaydi.
 
 ### Intizom bali (0–100)
 

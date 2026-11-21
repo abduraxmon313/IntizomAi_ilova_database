@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}To'lov {{ o.public_id }}{% endblock %}
+{% block heading %}To'lov <span class="mono">{{ o.public_id }}</span>{% endblock %}
+{% block actions %}{{ m.order_badge(o.status, STATUSES) }}<a class="btn" href="/admin/payments">← To'lovlar</a>{% endblock %}
+{% block content %}
+<div class="grid g2">
+  <div class="card">
+    <h2>Buyurtma</h2>
+    <dl class="kv">
+      <dt>Foydalanuvchi</dt><dd>{{ m.person(u) }}</dd>
+      <dt>Tarif</dt><dd>{{ plan.title if plan else o.plan_key }} · {{ o.days or "—" }} kun{% if o.bonus_days %} (shundan +{{ o.bonus_days }} bonus){% endif %}</dd>
+      <dt>Summa</dt><dd><b>{{ o.amount|tiyin }}</b>{% if o.original_amount and o.original_amount != o.amount %} <span class="faint">(chegirmasiz {{ o.original_amount|tiyin }})</span>{% endif %}</dd>
+      <dt>Promokod</dt><dd>{% if o.promo_id %}<a href="/admin/promos/{{ o.promo_id }}">{{ o.promo_code|upper }}</a>{% else %}{{ o.promo_code|upper if o.promo_code else "—" }}{% endif %}</dd>
+      <dt>To'lov usuli</dt><dd>{{ o.provider }}</dd>
+      <dt>Yaratilgan</dt><dd>{{ o.created_at|fdt }}</dd>
+      <dt>To'langan</dt><dd>{{ o.paid_at|fdt }}</dd>
+      <dt>Oxirgi tekshiruv</dt><dd>{{ o.last_checked_at|fdt }}</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h2>Bot / Paylov</h2>
+    <dl class="kv">
+      <dt>external_id</dt><dd class="mono">{{ o.external_id or "—" }}</dd>
+      <dt>Checkout</dt><dd>{% if o.checkout_url %}<a href="{{ o.checkout_url }}" target="_blank" rel="noopener noreferrer">To'lov sahifasi ↗</a>{% else %}—{% endif %}</dd>
+      <dt>Xato</dt><dd>{{ o.error or "—" }}</dd>
+    </dl>
+    <div class="note small" style="margin-top:14px">Bot buyurtmani to'langan deb belgilagach, ilovaga imzolangan xabar yuboradi va Premium avtomatik ochiladi. Xabar kelmasa, «Bot'dan tekshirish» holatni so'raydi.</div>
+    <div class="row" style="margin-top:14px">
+      {% if o.status == 'pending' and o.external_id %}{{ m.post("/admin/payments/" ~ o.id ~ "/sync", "↻ Bot'dan tekshirish", csrf, cls="btn") }}{% endif %}
+      {% if ctx.can('admin') and o.status in ('pending', 'creating') %}{{ m.post("/admin/payments/" ~ o.id ~ "/cancel", "Bekor qilish", csrf, cls="btn danger", confirm="To'lovni bekor qilasizmi?") }}{% endif %}
+    </div>
+    {% if ctx.can('admin') and o.status != 'paid' %}
+    <details class="danger-zone" style="margin-top:16px">
+      <summary>Qo'lda faollashtirish</summary>
+      <p class="muted small">Faqat pul tushgani aniq bo'lsa (masalan, Paylov kabinetida ko'rinsa, lekin callback kelmagan bo'lsa). Foydalanuvchiga {{ o.days or (plan.days if plan else '?') }} kun Premium beriladi.</p>
+      <form method="post" action="/admin/payments/{{ o.id }}/mark-paid" class="row" data-confirm="To'lovni qo'lda to'langan deb belgilaysizmi?">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="text" name="reason" maxlength="200" placeholder="Sabab (majburiy)" required style="flex:1">
+        <button class="btn gold" type="submit">Faollashtirish</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

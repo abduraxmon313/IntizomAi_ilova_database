@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Bosh sahifa{% endblock %}
+{% block heading %}Bosh sahifa{% endblock %}
+{% block sub %}<div class="sub">Ilova bo'yicha umumiy holat · ma'lumot ilova bazasidan</div>{% endblock %}
+{% block actions %}<a class="btn" href="/admin/users">Foydalanuvchi qidirish</a><a class="btn primary" href="/admin/promos/new">+ Promokod</a>{% endblock %}
+{% block content %}
+<div class="grid g4">
+  <div class="stat"><div class="lbl">Foydalanuvchilar</div><div class="val">{{ s.users_total|num }}</div>
+    <div class="hint">{{ s.onboarded|num }} ro'yxatdan o'tgan · {{ s.not_onboarded|num }} yarim yo'lda</div></div>
+  <div class="stat gold"><div class="lbl">Premium hozir</div><div class="val">{{ s.premium_now|num }}</div>
+    <div class="hint">Konversiya: {{ s.conversion }}%</div></div>
+  <div class="stat"><div class="lbl">Daromad (30 kun)</div><div class="val sm">{{ s.revenue['30'][0]|som }}</div>
+    <div class="hint">{{ s.revenue['30'][1] }} ta to'lov · bugun {{ s.revenue['1'][0]|som }}</div></div>
+  <div class="stat"><div class="lbl">Jami daromad</div><div class="val sm">{{ s.revenue['all'][0]|som }}</div>
+    <div class="hint">{{ s.revenue['all'][1] }} ta to'lov{% if s.pending %} · <a href="/admin/payments?status=pending">{{ s.pending }} kutilmoqda</a>{% endif %}</div></div>
+</div>
+
+<div class="grid g4" style="margin-top:16px">
+  <div class="stat"><div class="lbl">Yangi (24 soat / 7 / 30 kun)</div><div class="val sm num">{{ s.new[1] }} · {{ s.new[7] }} · {{ s.new[30] }}</div></div>
+  <div class="stat"><div class="lbl">Faol (24 soat / 7 / 30 kun)</div><div class="val sm num">{{ s.active[1] }} · {{ s.active[7] }} · {{ s.active[30] }}</div>
+    <div class="hint">Ilovani ochganlar</div></div>
+  <div class="stat"><div class="lbl">Bugun</div><div class="val sm num">{{ s.plans_today|num }} reja · {{ s.habit_logs_today|num }} odat</div>
+    <div class="hint">{{ s.ai_today|num }} ta AI xabar (bepul foydalanuvchilar)</div></div>
+  <div class="stat"><div class="lbl">Bloklangan</div><div class="val sm">{{ s.banned|num }}</div>
+    <div class="hint"><a href="/admin/users?f=banned">Ro'yxatni ko'rish</a></div></div>
+</div>
+
+<div class="grid g3" style="margin-top:16px">
+  <div class="card"><h2>Kunlik faol foydalanuvchilar</h2><p class="muted small" style="margin-top:-8px">Reja yoki odat bajarganlar · 30 kun</p>{{ m.bars(s.dau) }}</div>
+  <div class="card"><h2>Yangi ro'yxatdan o'tishlar</h2><p class="muted small" style="margin-top:-8px">30 kun</p>{{ m.bars(s.signups, "ok") }}</div>
+  <div class="card"><h2>Daromad</h2><p class="muted small" style="margin-top:-8px">So'm · 30 kun</p>{{ m.bars(s.revenue_series, "gold") }}</div>
+</div>
+
+<div class="grid g3" style="margin-top:16px">
+  <div class="card">
+    <div class="card-head"><h2>Premium manbalari</h2><a class="small" href="/admin/premium">Batafsil</a></div>
+    {% set total = (s.by_source | sum(attribute=2)) or 1 %}
+    {% for key, label, n in s.by_source %}
+      <div class="hbar"><a href="/admin/premium?source={{ key }}">{{ label }}</a><div class="track"><div class="fill gold" style="width: {{ (n / total * 100)|round(1) }}%"></div></div><span class="right num">{{ n }}</span></div>
+    {% else %}<div class="muted">Hozircha Premium foydalanuvchi yo'q.</div>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Unvonlar bo'yicha</h2>
+    {% set total = (s.ranks | sum(attribute=2)) or 1 %}
+    {% for emoji, title, n in s.ranks %}
+      <div class="hbar"><span>{{ emoji }} {{ title }}</span><div class="track"><div class="fill" style="width: {{ (n / total * 100)|round(1) }}%"></div></div><span class="right num">{{ n }}</span></div>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <h2>Kontent</h2>
+    <div class="mini-stats">
+      <div><b>{{ s.plans_total|num }}</b><span>reja (jami)</span></div>
+      <div><b>{{ (s.plans_done * 100 / s.plans_total)|round|int if s.plans_total else 0 }}%</b><span>bajarilgan</span></div>
+      <div><b>{{ s.habits_active|num }}</b><span>faol odat</span></div>
+      <div><b>{{ s.goals_total|num }}</b><span>maqsad</span></div>
+      <div><b>{{ s.groups_total|num }}</b><span>guruh</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid g3" style="margin-top:16px">
+  <div class="card flush">
+    <div class="card-head" style="padding:16px 16px 0"><h2>Eng ko'p ball</h2></div>
+    <table><tbody>
+      {% for u in s.top_score %}<tr><td>{{ m.person(u) }}</td><td class="right num">{{ u.total_score|num }}</td></tr>
+      {% else %}<tr><td class="empty">Ma'lumot yo'q</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card flush">
+    <div class="card-head" style="padding:16px 16px 0"><h2>Eng uzun seriya</h2></div>
+    <table><tbody>
+      {% for u in s.top_streak %}<tr><td>{{ m.person(u) }}</td><td class="right num">🔥 {{ u.streak }} kun</td></tr>
+      {% else %}<tr><td class="empty">Hozircha seriya yo'q</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="card flush">
+    <div class="card-head" style="padding:16px 16px 0"><h2>Premium tugayapti (3 kun)</h2></div>
+    <table><tbody>
+      {% for u in s.expiring %}<tr><td>{{ m.person(u) }}</td><td class="right small muted nowrap">{{ u.premium_until|ago }}</td></tr>
+      {% else %}<tr><td class="empty">Yaqin 3 kunda tugaydigan obuna yo'q</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endblock %}

@@ -86,6 +86,10 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
     last_active_at: Mapped[datetime | None] = mapped_column(TS)
 
+    # ── Moderatsiya (admin panel) ──
+    banned_at: Mapped[datetime | None] = mapped_column(TS)
+    ban_reason: Mapped[str | None] = mapped_column(String(200))
+
 
 class AuthIdentity(Base):
     """Kirish usuli: Google yoki Apple hisobi. Bitta foydalanuvchida ikkalasi bo'lishi mumkin."""
@@ -262,7 +266,11 @@ class PaymentOrder(Base):
     plan_key: Mapped[str] = mapped_column(String(16))
     provider: Mapped[str] = mapped_column(String(24))
     promo_code: Mapped[str | None] = mapped_column(String(64))
+    promo_id: Mapped[int | None] = mapped_column(ForeignKey("promocodes.id", ondelete="SET NULL"))
     amount: Mapped[int | None] = mapped_column(BigInteger)  # tiyin
+    # Chegirmadan oldingi narx (tiyin) — admin panelda chegirma summasini ko'rsatish uchun.
+    original_amount: Mapped[int | None] = mapped_column(BigInteger)
+    bonus_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     days: Mapped[int | None] = mapped_column(Integer)
     external_id: Mapped[str | None] = mapped_column(String(120), unique=True)
     checkout_url: Mapped[str | None] = mapped_column(Text)
@@ -360,3 +368,154 @@ class AppState(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(TS, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+# ─────────────────────────────────────────────────────────────
+#  Tariflar va promokodlar (admin paneldan boshqariladi)
+# ─────────────────────────────────────────────────────────────
+class PricingPlan(Base):
+    """Sotuvdagi tarif. Narx so'mda. Bot faqat Paylov to'lovini o'tkazadi."""
+
+    __tablename__ = "pricing_plans"
+
+    key: Mapped[str] = mapped_column(String(16), primary_key=True)
+    title: Mapped[str] = mapped_column(String(64))
+    days: Mapped[int] = mapped_column(Integer)
+    price: Mapped[int] = mapped_column(Integer)
+    # Chizilgan "eski narx" (aksiya ko'rinishi uchun), ixtiyoriy.
+    original_price: Mapped[int | None] = mapped_column(Integer)
+    tag: Mapped[str | None] = mapped_column(String(64))
+    emoji: Mapped[str | None] = mapped_column(String(8))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(TS, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+class Promocode(Base):
+    """kind:
+    free     — to'lovsiz `days` kun Premium;
+    bonus    — tarif sotib olinganda `days` kun qo'shimcha;
+    discount — tarif narxidan `discount_percent`% chegirma (ixtiyoriy `days` bonus bilan).
+    """
+
+    __tablename__ = "promocodes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # Kichik harfda saqlanadi — kiritishda registr ahamiyatsiz.
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    kind: Mapped[str] = mapped_column(String(12))
+    days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    discount_percent: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Qaysi tariflarga amal qiladi ("1m,3m"); bo'sh — hammasiga.
+    plan_keys: Mapped[str | None] = mapped_column(String(160))
+    max_uses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0 — cheksiz
+    used_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    starts_at: Mapped[datetime | None] = mapped_column(TS)
+    expires_at: Mapped[datetime | None] = mapped_column(TS)
+    note: Mapped[str | None] = mapped_column(String(200))
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+
+
+class PromoRedemption(Base):
+    """Promokod ishlatilishi. Bitta hisob (identity) — bitta promokodni bir marta."""
+
+    __tablename__ = "promo_redemptions"
+    __table_args__ = (UniqueConstraint("promo_id", "identity_ref", name="uq_promo_redemption_identity"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    promo_id: Mapped[int] = mapped_column(ForeignKey("promocodes.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    identity_ref: Mapped[str] = mapped_column(String(80))
+    order_id: Mapped[int | None] = mapped_column(ForeignKey("payment_orders.id", ondelete="SET NULL"))
+    days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    amount: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)  # tiyin
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+
+
+# ─────────────────────────────────────────────────────────────
+#  E'lonlar (ilovada ko'rinadigan xabarlar — botdagi "xabar yuborish" o'rniga)
+# ─────────────────────────────────────────────────────────────
+class Announcement(Base):
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(120))
+    body: Mapped[str] = mapped_column(Text)
+    button_label: Mapped[str | None] = mapped_column(String(40))
+    button_url: Mapped[str | None] = mapped_column(String(500))
+    # all | free | premium | user
+    audience: Mapped[str] = mapped_column(String(12), default="all", nullable=False)
+    target_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    starts_at: Mapped[datetime | None] = mapped_column(TS)
+    ends_at: Mapped[datetime | None] = mapped_column(TS)
+    views: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+
+
+class AppSetting(Base):
+    """Admin paneldan o'zgartiriladigan sozlamalar (bo'lmasa — muhit o'zgaruvchisidagi qiymat)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    updated_by: Mapped[str | None] = mapped_column(String(64))
+    updated_at: Mapped[datetime] = mapped_column(TS, default=utcnow, onupdate=utcnow, nullable=False)
+
+
+# ─────────────────────────────────────────────────────────────
+#  Admin panel: hisoblar, sessiyalar, audit jurnali
+# ─────────────────────────────────────────────────────────────
+class AdminUser(Base):
+    """role: owner — hammasi (adminlarni boshqarish ham); admin — kundalik boshqaruv;
+    support — ko'rish va foydalanuvchiga yordam (premium berish yo'q)."""
+
+    __tablename__ = "admin_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(40), unique=True)
+    full_name: Mapped[str | None] = mapped_column(String(80))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(12), default="admin", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Ikki bosqichli kirish (TOTP) — shifrlangan maxfiy kalit.
+    totp_secret: Mapped[str | None] = mapped_column(Text)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    failed_logins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(TS)
+    last_login_at: Mapped[datetime | None] = mapped_column(TS)
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+
+
+class AdminSession(Base):
+    __tablename__ = "admin_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    admin_id: Mapped[int] = mapped_column(ForeignKey("admin_users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    csrf_token: Mapped[str] = mapped_column(String(64))
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(TS)
+    revoked_at: Mapped[datetime | None] = mapped_column(TS)
+
+
+class AdminAudit(Base):
+    __tablename__ = "admin_audit"
+    __table_args__ = (Index("ix_admin_audit_created", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    admin_id: Mapped[int | None] = mapped_column(ForeignKey("admin_users.id", ondelete="SET NULL"))
+    admin_username: Mapped[str | None] = mapped_column(String(40))
+    action: Mapped[str] = mapped_column(String(48))
+    target_type: Mapped[str | None] = mapped_column(String(24))
+    target_id: Mapped[str | None] = mapped_column(String(64))
+    summary: Mapped[str | None] = mapped_column(String(500))
+    ip: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)

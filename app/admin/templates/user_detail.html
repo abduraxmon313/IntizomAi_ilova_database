@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}{{ u.full_name or ('#' ~ u.id) }}{% endblock %}
+{% block heading %}<div class="row">{{ m.avatar(u, "lg") }}<span>{{ u.full_name or "Ismsiz" }}</span></div>{% endblock %}
+{% block sub %}<div class="sub">{% if u.username %}@{{ u.username }} · {% endif %}ID {{ u.id }}{% if u.email %} · {{ u.email }}{% endif %}</div>{% endblock %}
+{% block actions %}
+  {% if u.banned_at %}<span class="badge err">Bloklangan</span>{% endif %}
+  {% if d.is_premium %}<span class="badge gold">👑 Premium · {{ d.days_left }} kun</span>{% else %}<span class="badge">Bepul tarif</span>{% endif %}
+  <a class="btn" href="/admin/users">← Ro'yxat</a>
+{% endblock %}
+{% block content %}
+{% if u.banned_at %}<div class="note warn" style="margin-bottom:16px">🚫 {{ u.banned_at|fdt }} da bloklangan. Sabab: <b>{{ u.ban_reason }}</b></div>{% endif %}
+
+<div class="grid g3">
+  <div class="card span2">
+    <h2>Profil</h2>
+    <div class="grid g2">
+      <dl class="kv">
+        <dt>Ism</dt><dd>{{ u.full_name or "—" }}</dd>
+        <dt>Username</dt><dd>{{ ('@' ~ u.username) if u.username else "—" }}</dd>
+        <dt>Yosh</dt><dd>{{ d.age or "—" }}</dd>
+        <dt>Email</dt><dd>{{ u.email or "—" }}</dd>
+        <dt>Kirish usuli</dt><dd>{% for i in d.identities %}<span class="badge">{{ 'Apple' if i.provider == 'apple' else 'Google' }}</span> {% endfor %}</dd>
+      </dl>
+      <dl class="kv">
+        <dt>Ro'yxatdan</dt><dd>{{ u.created_at|fdt }}</dd>
+        <dt>Onboarding</dt><dd>{{ u.onboarded_at|fdt if u.onboarded else "Tugatilmagan" }}</dd>
+        <dt>Oxirgi faollik</dt><dd>{{ u.last_active_at|fdt }} <span class="faint">({{ u.last_active_at|ago }})</span></dd>
+        <dt>Qurilmalar</dt><dd>{{ d.sessions }} ta faol sessiya</dd>
+        <dt>Eslatmalar</dt><dd>{{ "yoqilgan" if u.notifications_enabled else "o'chiq" }} · reytingda {{ "ko'rinadi" if u.leaderboard_visible else "yashirin" }}</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Natijalar</h2>
+    <div class="mini-stats">
+      <div><b>{{ d.rank[1] }} {{ u.level }}</b><span>{{ d.rank[0] }}</span></div>
+      <div><b>{{ u.total_score|num }}</b><span>ball · hafta {{ u.weekly_xp|num }}</span></div>
+      <div><b>{{ u.streak }}</b><span>seriya · rekord {{ u.longest_streak }}</span></div>
+      <div><b>{{ u.discipline_score }}</b><span>intizom bali</span></div>
+      <div><b>{{ u.perfect_days }}</b><span>mukammal kun</span></div>
+      <div><b>{{ u.streak_freezes }}</b><span>muzlatgich</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid g4" style="margin-top:16px">
+  <div class="stat"><div class="lbl">Rejalar</div><div class="val sm">{{ d.plans_total|num }}</div>
+    <div class="hint">✓ {{ d.plans.get('done', 0) }} · ✗ {{ d.plans.get('failed', 0) }} · ⏳ {{ d.plans.get('pending', 0) }}</div></div>
+  <div class="stat"><div class="lbl">Odatlar</div><div class="val sm">{{ d.habits_active }}</div><div class="hint">{{ d.habit_logs|num }} marta belgilangan · {{ d.habits_archived }} arxivda</div></div>
+  <div class="stat"><div class="lbl">Maqsadlar</div><div class="val sm">{{ d.goals_done }}/{{ d.goals_total }}</div><div class="hint">bajarilgan</div></div>
+  <div class="stat"><div class="lbl">AI murabbiy (bugun)</div><div class="val sm">{{ d.ai_today }}</div><div class="hint">bepul limit bo'yicha</div></div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  {# ── Premium ── #}
+  <div class="card">
+    <div class="card-head"><h2>Premium</h2>
+      {% if d.is_premium %}<span class="badge gold">{{ u.premium_until|fdt }} gacha</span>{% endif %}</div>
+    {% if ctx.can('admin') %}
+    <form method="post" action="/admin/users/{{ u.id }}/premium/grant" class="row" style="align-items:flex-end">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div style="flex:1;min-width:120px"><label>Tarif bo'yicha</label>
+        <select name="plan"><option value="">— kunlarni o'zim yozaman —</option>
+          {% for p in d.plans_catalog %}<option value="{{ p.key }}">{{ p.title }} ({{ p.days }} kun)</option>{% endfor %}</select></div>
+      <div style="width:110px"><label>yoki kunlar</label><input type="number" name="days" min="1" max="3650" placeholder="30"></div>
+      <div style="flex:1;min-width:140px"><label>Izoh (ixtiyoriy)</label><input type="text" name="note" maxlength="200" placeholder="masalan: sovg'a"></div>
+      <button class="btn gold" type="submit">+ Premium berish</button>
+    </form>
+    {% if d.is_premium %}
+    <form method="post" action="/admin/users/{{ u.id }}/premium/revoke" class="row" style="margin-top:10px" data-confirm="Premiumni hozir bekor qilasizmi? Qolgan {{ d.days_left }} kun yo'qoladi.">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="text" name="note" maxlength="200" placeholder="Bekor qilish sababi" style="flex:1">
+      <button class="btn danger" type="submit">Premiumni bekor qilish</button>
+    </form>
+    {% endif %}
+    {% endif %}
+    <h3 style="margin-top:18px">Obuna tarixi</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Manba</th><th>Kun</th><th>Summa</th><th>Davr</th></tr></thead>
+      <tbody>
+      {% for s in d.subs %}
+        <tr><td><span class="badge {{ 'gold' if s.source == 'paylov' else 'brand' if s.source == 'admin' else '' }}">{{ SOURCE_LABELS.get(s.source, s.source) }}</span>{% if s.plan_key %} <span class="faint small">{{ s.plan_key }}</span>{% endif %}</td>
+          <td class="num">+{{ s.days }}</td><td class="num nowrap">{{ s.amount|tiyin if s.amount else "—" }}</td>
+          <td class="small nowrap">{{ s.starts_at|fdate }} → {{ s.expires_at|fdate }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">Obuna bo'lmagan.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+
+  {# ── To'lovlar va promokodlar ── #}
+  <div class="card">
+    <h2>To'lovlar</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Buyurtma</th><th>Holat</th><th>Summa</th><th>Sana</th></tr></thead>
+      <tbody>
+      {% for o in d.orders %}
+        <tr><td><a href="/admin/payments/{{ o.id }}" class="mono">{{ o.public_id[:12] }}…</a> <span class="faint small">{{ o.plan_key }}</span></td>
+          <td>{{ m.order_badge(o.status, {'paid':"To'langan",'pending':'Kutilmoqda','failed':'Xato','cancelled':'Bekor','creating':'Yaratilmoqda'}) }}</td>
+          <td class="num nowrap">{{ o.amount|tiyin }}{% if o.promo_code %} <span class="badge brand">{{ o.promo_code|upper }}</span>{% endif %}</td>
+          <td class="small nowrap">{{ o.created_at|fdt }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">To'lov qilmagan.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% if d.redemptions %}
+    <h3 style="margin-top:18px">Ishlatgan promokodlari</h3>
+    <div class="row">{% for r, code in d.redemptions %}<a class="badge brand" href="/admin/promos/{{ r.promo_id }}">{{ code|upper }} · {{ r.created_at|fdate }}</a>{% endfor %}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card">
+    <h2>Do'st taklifi</h2>
+    <dl class="kv">
+      <dt>Kim taklif qilgan</dt><dd>{% if d.referrer %}<a href="/admin/users/{{ d.referrer.id }}">{{ d.referrer.full_name }} (@{{ d.referrer.username }})</a>{% if u.referral_activated_at %} <span class="badge ok">faollashgan</span>{% else %} <span class="badge">hali faol emas</span>{% endif %}{% else %}—{% endif %}</dd>
+      <dt>U taklif qilganlar</dt><dd>{{ u.referral_count }} ta faol · {{ u.referral_rewards_given }} ta mukofot olingan</dd>
+    </dl>
+    {% if d.invitees %}<div class="row" style="margin-top:10px">{% for x in d.invitees %}<a class="badge" href="/admin/users/{{ x.id }}">{{ x.full_name or ('#' ~ x.id) }}{% if x.referral_activated_at %} ✓{% endif %}</a>{% endfor %}</div>{% endif %}
+    <h3 style="margin-top:18px">Guruhlar</h3>
+    {% for g, gm in d.groups %}<a class="badge {{ 'brand' if gm.role == 'owner' else '' }}" href="/admin/groups/{{ g.id }}">{{ g.name }}{% if gm.role == 'owner' %} · ega{% endif %}{% if not gm.is_active %} · pauza{% endif %}</a> {% else %}<span class="muted">Guruhlarda yo'q.</span>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Oxirgi rejalar</h2>
+    <div class="table-wrap"><table><tbody>
+      {% for p in d.recent_plans %}
+        <tr><td>{{ p.title }}</td><td class="small nowrap">{{ p.plan_date|fdate }}{% if p.scheduled_time %} {{ p.scheduled_time }}{% endif %}</td>
+          <td><span class="badge {{ 'ok' if p.status == 'done' else 'err' if p.status == 'failed' else '' }}">{{ {'done':'Bajarildi','failed':'Bajarilmadi','pending':'Kutilmoqda'}.get(p.status, p.status) }}</span></td></tr>
+      {% else %}<tr><td class="empty">Reja yo'q.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card">
+    <h2>Xabar yuborish</h2>
+    <p class="muted small" style="margin-top:-6px">Foydalanuvchi ilovani ochganda «Bugun» sahifasining tepasida ko'radi (30 kun).</p>
+    <form method="post" action="/admin/users/{{ u.id }}/message">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <div class="field"><input type="text" name="title" maxlength="120" placeholder="Sarlavha" required></div>
+      <div class="field"><textarea name="body" maxlength="2000" placeholder="Xabar matni" required></textarea></div>
+      <button class="btn primary" type="submit">Yuborish</button>
+    </form>
+    {% if d.messages %}<h3 style="margin-top:16px">Avval yuborilgan</h3>
+      {% for a in d.messages %}<div class="small"><b>{{ a.title }}</b> <span class="faint">· {{ a.created_at|fdt }} · {{ a.views }} marta ko'rildi</span></div>{% endfor %}{% endif %}
+  </div>
+  <div class="card">
+    <h2>Amallar</h2>
+    <div class="row">
+      {{ m.post("/admin/users/" ~ u.id ~ "/sessions/revoke", "Barcha qurilmalardan chiqarish", csrf, confirm="Foydalanuvchi barcha qurilmalarda qayta kirishi kerak bo'ladi. Davom etasizmi?") }}
+      {{ m.post("/admin/users/" ~ u.id ~ "/ai-reset", "AI limitini yangilash", csrf) }}
+      {% if ctx.can('admin') %}{{ m.post("/admin/users/" ~ u.id ~ "/freeze", "+1 seriya muzlatgichi", csrf) }}{% endif %}
+    </div>
+    {% if ctx.can('admin') %}
+    <details class="disclose" style="margin-top:16px">
+      <summary>Ism yoki username'ni tahrirlash</summary>
+      <form method="post" action="/admin/users/{{ u.id }}/edit" class="form-grid" style="margin-top:12px">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <div class="field"><label>Ism</label><input type="text" name="full_name" value="{{ u.full_name or '' }}" maxlength="60"></div>
+        <div class="field"><label>Username</label><input type="text" name="username" value="{{ u.username or '' }}" maxlength="20"></div>
+        <div class="full"><button class="btn" type="submit">Saqlash</button></div>
+      </form>
+    </details>
+    <div style="margin-top:16px">
+      {% if u.banned_at %}
+        {{ m.post("/admin/users/" ~ u.id ~ "/unban", "Blokdan chiqarish", csrf, cls="btn") }}
+      {% else %}
+      <details class="danger-zone">
+        <summary>Bloklash</summary>
+        <form method="post" action="/admin/users/{{ u.id }}/ban" class="row" style="margin-top:12px" data-confirm="Foydalanuvchini bloklaysizmi? U ilovaga kira olmaydi.">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <input type="text" name="reason" maxlength="200" placeholder="Sabab (majburiy)" required style="flex:1">
+          <button class="btn danger" type="submit">Bloklash</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if ctx.can('owner') %}
+    <details class="danger-zone" style="margin-top:12px">
+      <summary>Hisobni butunlay o'chirish</summary>
+      <p class="muted small">Barcha rejalar, odatlar, maqsadlar va obuna tarixi o'chadi. Guruh egaligi boshqa a'zoga o'tadi. Qaytarib bo'lmaydi.</p>
+      <form method="post" action="/admin/users/{{ u.id }}/delete" class="row" data-confirm="Hisobni butunlay o'chirasizmi? Bu amalni qaytarib bo'lmaydi.">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input type="text" name="confirm" placeholder="Tasdiqlash uchun ID: {{ u.id }}" required style="flex:1">
+        <button class="btn danger solid" type="submit">O'chirish</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

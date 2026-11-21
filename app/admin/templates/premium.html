@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Premium{% endblock %}
+{% block heading %}Premium foydalanuvchilar{% endblock %}
+{% block sub %}<div class="sub">Hozir faol obunasi borlar · {{ page.total|num }} ta</div>{% endblock %}
+{% block content %}
+<div class="seg" style="margin-bottom:12px">
+  <a class="{{ 'on' if not source }}" href="/admin/premium?sort={{ sort }}">Hammasi</a>
+  {% for key, label, n in by_source %}<a class="{{ 'on' if source == key }}" href="/admin/premium?source={{ key }}&sort={{ sort }}">{{ label }}<span class="n">{{ n }}</span></a>{% endfor %}
+</div>
+<div class="row" style="margin-bottom:14px">
+  <span class="muted small">Saralash:</span>
+  <div class="seg"><a class="{{ 'on' if sort == 'soon' }}" href="/admin/premium?source={{ source }}&sort=soon">Tez tugaydiganlar</a><a class="{{ 'on' if sort != 'soon' }}" href="/admin/premium?source={{ source }}&sort=late">Ko'p qolganlar</a></div>
+</div>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Foydalanuvchi</th><th>Manba</th><th>Tugash sanasi</th><th class="right">Qolgan</th></tr></thead>
+    <tbody>
+    {% for u in page.items %}
+      {% set left = premium.days_left(u) %}
+      <tr><td>{{ m.person(u) }}</td>
+        <td><span class="badge {{ 'gold' if sources.get(u.id) == 'paylov' else 'brand' }}">{{ SOURCE_LABELS.get(sources.get(u.id), sources.get(u.id) or '—') }}</span></td>
+        <td class="nowrap">{{ u.premium_until|fdt }}</td>
+        <td class="right num"><span class="badge {{ 'err' if left <= 3 else 'warn' if left <= 7 else 'ok' }}">{{ left }} kun</span></td></tr>
+    {% else %}<tr><td colspan="4" class="empty">Premium foydalanuvchi yo'q.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}

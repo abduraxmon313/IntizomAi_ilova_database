@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Foydalanuvchilar{% endblock %}
+{% block heading %}Foydalanuvchilar{% endblock %}
+{% block actions %}{% if ctx.can('admin') %}<a class="btn" href="/admin/users.csv?q={{ q|urlencode }}&f={{ f }}&sort={{ sort }}">⇩ CSV</a>{% endif %}{% endblock %}
+{% block content %}
+<form method="get" class="filters" style="margin-bottom:14px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Ism, @username, email yoki ID" autofocus>
+  <select name="sort" data-autosubmit>
+    {% for k, label in SORTS.items() %}<option value="{{ k }}" {{ 'selected' if k == sort }}>Saralash: {{ label }}</option>{% endfor %}
+  </select>
+  <input type="hidden" name="f" value="{{ f }}">
+  <button class="btn" type="submit">Qidirish</button>
+  {% if q %}<a class="btn ghost" href="/admin/users?f={{ f }}">Tozalash</a>{% endif %}
+</form>
+<div class="seg" style="margin-bottom:14px">
+  {% for k, label in FILTERS.items() %}<a class="{{ 'on' if k == f }}" href="/admin/users?f={{ k }}&q={{ q|urlencode }}&sort={{ sort }}">{{ label }}</a>{% endfor %}
+</div>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Foydalanuvchi</th><th>Holat</th><th class="right">Ball</th><th class="right">Seriya</th><th class="right">Intizom</th><th>Ro'yxatdan</th><th>Oxirgi faollik</th></tr></thead>
+    <tbody>
+    {% for u in page.items %}
+      <tr>
+        <td>{{ m.person(u, u.email) }}</td>
+        <td>
+          {% if u.banned_at %}<span class="badge err">Bloklangan</span>
+          {% elif not u.onboarded %}<span class="badge">Ro'yxatdan o'tmagan</span>
+          {% elif u.premium_until and u.premium_until > now %}<span class="badge gold">Premium · {{ u.premium_until|fdate }}</span>
+          {% else %}<span class="badge">Bepul</span>{% endif %}
+        </td>
+        <td class="right num">{{ u.total_score|num }}</td>
+        <td class="right num">{{ u.streak }}</td>
+        <td class="right num">{{ u.discipline_score }}</td>
+        <td class="nowrap small">{{ u.created_at|fdate }}</td>
+        <td class="nowrap small muted">{{ u.last_active_at|ago }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="empty">Hech kim topilmadi.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}

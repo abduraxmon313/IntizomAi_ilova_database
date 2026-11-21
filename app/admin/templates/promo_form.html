@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Yangi promokod{% endblock %}
+{% block heading %}Yangi promokod{% endblock %}
+{% block actions %}<a class="btn" href="/admin/promos">← Promokodlar</a>{% endblock %}
+{% block content %}
+{% if errors %}<ul class="errors">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+{% set fk = (form.str('kind') if form else 'free') or 'free' %}
+<form method="post" action="/admin/promos/new" class="grid g3">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="card span2">
+    <h2>1. Turi</h2>
+    <div class="grid g3">
+      {% for k, label, hint in [
+        ("free", "🎁 Bepul Premium", "To'lovsiz, darhol N kun Premium. Profil yoki Premium oynasida kiritiladi."),
+        ("discount", "🏷 Chegirma", "Tarif narxidan N% arzon. Xohlasangiz bonus kun ham qo'shing."),
+        ("bonus", "➕ Bonus kunlar", "To'liq narxda sotib olganda tarif ustiga N kun qo'shiladi."),
+      ] %}
+      <label class="card" style="margin:0;cursor:pointer;color:var(--ink)">
+        <span class="check"><input type="radio" name="kind" value="{{ k }}" data-promo-kind {{ 'checked' if fk == k }}> <b>{{ label }}</b></span>
+        <span class="help" style="display:block;margin-top:6px;font-weight:400;color:var(--ink-2)">{{ hint }}</span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <h2 style="margin-top:22px">2. Qiymati</h2>
+    <div class="form-grid">
+      <div class="field" data-show-for="discount"><label>Chegirma, %</label><input type="number" name="discount_percent" min="1" max="99" value="{{ form.str('discount_percent') if form else 50 }}"><div class="help">Narx 100 so'mga pastga yaxlitlanadi.</div></div>
+      <div class="field" data-show-for="free"><label>Premium kunlari</label><input type="number" name="days_free" min="1" max="3650" value="{{ form.str('days_free') if form else 30 }}"></div>
+      <div class="field" data-show-for="bonus discount" hidden><label>Bonus kunlar</label><input type="number" name="days_bonus" min="0" max="3650" value="{{ form.str('days_bonus') if form else 0 }}"><div class="help">Chegirmada ixtiyoriy (0 — bonus yo'q).</div></div>
+    </div>
+    <div class="field" data-show-for="bonus discount">
+      <label>Qaysi tariflarga</label>
+      <div class="checks">{% for p in plans %}<label class="check"><input type="checkbox" name="plan_keys" value="{{ p.key }}" {{ 'checked' if p.key in selected }}> {{ p.title }} <span class="faint">({{ p.price|som }})</span></label>{% endfor %}</div>
+      <div class="help">Hech biri belgilanmasa — barcha tariflarga amal qiladi.</div>
+    </div>
+
+    <h2 style="margin-top:22px">3. Cheklovlar</h2>
+    <div class="form-grid">
+      <div class="field"><label>Boshlanish sanasi</label><input type="date" name="starts_at" value="{{ form.str('starts_at') if form else '' }}"><div class="help">Bo'sh — darhol.</div></div>
+      <div class="field"><label>Tugash sanasi</label><input type="date" name="expires_at" value="{{ form.str('expires_at') if form else '' }}"><div class="help">Shu kun oxirigacha amal qiladi. Bo'sh — muddatsiz.</div></div>
+      <div class="field" data-single><label>Umumiy ishlatish limiti</label><input type="number" name="max_uses" min="0" value="{{ form.str('max_uses') if form else 0 }}"><div class="help">0 — cheksiz. Har bir hisob baribir faqat bir marta ishlata oladi.</div></div>
+      <div class="field"><label>Izoh (faqat adminlar ko'radi)</label><input type="text" name="note" maxlength="200" value="{{ form.str('note') if form else '' }}" placeholder="masalan: Instagram aksiyasi"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Kod</h2>
+    <div class="field"><label>Nechta kod</label><input type="number" name="count" min="1" max="1000" value="{{ form.str('count') if form else 1 }}">
+      <div class="help">1 — bitta umumiy kod. 2…1000 — har biri bir martalik noyob kodlar (sovg'a, hamkorlar uchun).</div></div>
+    <div class="field" data-single><label>Promokod</label><input type="text" name="code" maxlength="40" value="{{ form.str('code') if form else suggestion }}" style="text-transform:uppercase" autocomplete="off">
+      <div class="help">3–40 belgi: lotin harfi, raqam, - va _. Registr ahamiyatsiz.</div></div>
+    <div class="field" data-batch hidden><label>Prefiks (ixtiyoriy)</label><input type="text" name="prefix" maxlength="20" value="{{ form.str('prefix') if form else '' }}" placeholder="masalan: GIFT-" style="text-transform:uppercase"></div>
+    <button class="btn primary" type="submit" style="width:100%">Yaratish</button>
+    <div class="note small" style="margin-top:14px">Promokod faqat shu ilova bazasida ishlaydi. Bot faqat Paylov to'lovini o'tkazadi — chegirmali narxni ilova hisoblab yuboradi.</div>
+  </div>
+</form>
+{% endblock %}

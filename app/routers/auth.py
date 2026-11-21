@@ -70,6 +70,9 @@ async def _sign_in(
         if linked is not None:
             user = await db.get(User, linked.user_id)
 
+    if user is not None and user.banned_at is not None:
+        fail(403, "account_banned")
+
     if user is None:
         user = User(
             full_name=clean_name(name_hint or ident.name),

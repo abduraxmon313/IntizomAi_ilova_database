@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Guruhlar{% endblock %}
+{% block heading %}Guruhlar{% endblock %}
+{% block content %}
+<form method="get" class="filters" style="margin-bottom:14px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Guruh nomi, ega @username yoki ID">
+  <button class="btn" type="submit">Qidirish</button>
+</form>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Guruh</th><th>Ega</th><th class="right">A'zolar</th><th>Yaratilgan</th></tr></thead>
+    <tbody>
+    {% for g, owner, n in page.items %}
+      <tr><td><a href="/admin/groups/{{ g.id }}"><b>{{ g.name }}</b></a>{% if g.description %}<div class="faint small">{{ g.description }}</div>{% endif %}</td>
+        <td>{{ m.person(owner) }}</td><td class="right num">{{ n }}</td><td class="small nowrap">{{ g.created_at|fdate }}</td></tr>
+    {% else %}<tr><td colspan="4" class="empty">Guruh topilmadi.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}

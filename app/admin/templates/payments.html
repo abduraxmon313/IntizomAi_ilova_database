@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}To'lovlar{% endblock %}
+{% block heading %}To'lovlar{% endblock %}
+{% block sub %}<div class="sub">Paylov orqali (bot ko'prigi). Narx va promokod — ilova bazasidan.</div>{% endblock %}
+{% block actions %}{% if ctx.can('admin') %}<a class="btn" href="/admin/payments.csv?q={{ q|urlencode }}&status={{ status }}">⇩ CSV</a>{% endif %}{% endblock %}
+{% block content %}
+<div class="grid g4" style="margin-bottom:16px">
+  {% for k in ['paid', 'pending', 'cancelled', 'failed'] %}
+  <a class="stat" href="/admin/payments?status={{ k }}" style="text-decoration:none;color:inherit">
+    <div class="lbl">{{ STATUSES[k] }}</div><div class="val sm">{{ summary.get(k, 0)|num }}</div></a>
+  {% endfor %}
+</div>
+{% if by_plan %}
+<div class="card" style="margin-bottom:16px">
+  <h2>Sotuvlar tarif bo'yicha</h2>
+  <div class="mini-stats">{% for key, n, s in by_plan %}<div><b>{{ n|num }}</b><span>{{ key }} · {{ s|tiyin }}</span></div>{% endfor %}</div>
+</div>
+{% endif %}
+<form method="get" class="filters" style="margin-bottom:14px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Buyurtma ID, foydalanuvchi, @username, promokod">
+  <select name="status" data-autosubmit>
+    <option value="">Barcha holatlar</option>
+    {% for k, label in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if k == status }}>{{ label }}</option>{% endfor %}
+  </select>
+  <button class="btn" type="submit">Qidirish</button>
+</form>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Buyurtma</th><th>Foydalanuvchi</th><th>Tarif</th><th class="right">Summa</th><th>Holat</th><th>Sana</th></tr></thead>
+    <tbody>
+    {% for o, u in page.items %}
+      <tr>
+        <td><a class="mono" href="/admin/payments/{{ o.id }}">{{ o.public_id }}</a><div class="faint small">{{ o.provider }}</div></td>
+        <td>{{ m.person(u) }}</td>
+        <td>{{ o.plan_key }} <span class="faint small">· {{ o.days or '—' }} kun</span>{% if o.promo_code %}<div><span class="badge brand">{{ o.promo_code|upper }}</span></div>{% endif %}</td>
+        <td class="right num nowrap"><b>{{ o.amount|tiyin }}</b>{% if o.original_amount and o.original_amount != o.amount %}<div class="faint small"><s>{{ o.original_amount|tiyin }}</s></div>{% endif %}</td>
+        <td>{{ m.order_badge(o.status, STATUSES) }}</td>
+        <td class="small nowrap">{{ o.created_at|fdt }}{% if o.paid_at %}<div class="faint">to'langan: {{ o.paid_at|fdt }}</div>{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">To'lov topilmadi.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}
