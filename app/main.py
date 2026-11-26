@@ -16,8 +16,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import admin, config, jobs
-from app.i18n import current_lang, pick_lang, t
-from app.routers import ai, auth, billing, goals, groups, habits, pages, plans, profile, stats
+from app.i18n import current_lang, current_platform, pick_lang, pick_platform, t
+from app.routers import ai, auth, billing, goals, groups, habits, pages, plans, profile, reports, stats
 from app.security import rate_key, rate_limited
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -63,6 +63,7 @@ app.add_middleware(GZipMiddleware, minimum_size=800)
 @app.middleware("http")
 async def guard(request: Request, call_next):
     current_lang.set(pick_lang(request.headers.get("accept-language")))
+    current_platform.set(pick_platform(request.headers.get("x-app-platform")))
     path = request.url.path
     if path.startswith("/api/") and not path.startswith("/api/v1/avatars/"):
         cl = request.headers.get("content-length")
@@ -115,7 +116,7 @@ async def unhandled(request: Request, exc: Exception):
 
 
 API = "/api/v1"
-for r in (auth, profile, plans, habits, goals, stats, ai, groups, billing):
+for r in (auth, profile, plans, habits, goals, stats, ai, groups, billing, reports):
     app.include_router(r.router, prefix=API)
 app.include_router(pages.router)
 admin.install(app)

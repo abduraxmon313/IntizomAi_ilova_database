@@ -77,7 +77,7 @@ async def leaderboard(period: str = "all", user: User = Depends(onboarded_user),
             "photo_url": photo_url(u),
             "value": int(getattr(u, attr) or 0),
             "is_me": u.id == user.id,
-            "is_premium": premium.is_premium(u),
+            "is_premium": premium.is_premium(u) and premium.purchases_visible(),
         }
         for i, u in enumerate(rows)
     ]
@@ -94,7 +94,7 @@ async def leaderboard(period: str = "all", user: User = Depends(onboarded_user),
             "username": user.username,
             "photo_url": photo_url(user),
             "value": my_val,
-            "is_premium": premium.is_premium(user),
+            "is_premium": premium.is_premium(user) and premium.purchases_visible(),
             "in_top": any(t["is_me"] for t in top),
             "visible": user.leaderboard_visible,
         },

@@ -60,13 +60,13 @@ async def list_groups(user: User = Depends(onboarded_user), db: AsyncSession = D
     return {
         "groups": await svc.list_my_groups(db, user),
         "invites_count": await svc.pending_invites_count(db, user),
-        "can_create": premium.is_premium(user) or not rs.get("GROUP_CREATE_PREMIUM_ONLY"),
+        "can_create": premium.unlimited(user) or not rs.get("GROUP_CREATE_PREMIUM_ONLY"),
     }
 
 
 @router.post("/groups")
 async def create_group(body: GroupIn, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
-    if rs.get("GROUP_CREATE_PREMIUM_ONLY") and not premium.is_premium(user):
+    if rs.get("GROUP_CREATE_PREMIUM_ONLY") and not premium.unlimited(user):
         fail(402, "group_create_premium")
     g = await svc.create_group(db, user, body.name, body.description)
     return {"id": g.id, "name": g.name, "description": g.description, "member_count": 1, "is_owner": True}
@@ -139,7 +139,7 @@ async def my_invites(user: User = Depends(onboarded_user), db: AsyncSession = De
 
 @router.post("/invites/{invite_id}/accept")
 async def accept_invite(invite_id: int, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
-    if rs.get("GROUP_JOIN_PREMIUM_ONLY") and not premium.is_premium(user):
+    if rs.get("GROUP_JOIN_PREMIUM_ONLY") and not premium.unlimited(user):
         fail(402, "group_join_premium")
     return await svc.accept_invite(db, user, invite_id)
 

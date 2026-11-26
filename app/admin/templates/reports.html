@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% import "_m.html" as m %}
+{% block title %}Shikoyatlar{% endblock %}
+{% block heading %}Shikoyatlar{% endblock %}
+{% block content %}
+<p class="faint small" style="margin-bottom:12px">
+  App Store talabi: shikoyatlar 24 soat ichida ko'rib chiqilishi kerak. Nomaqbul kontent bo'lsa —
+  foydalanuvchini bloklang (foydalanuvchi sahifasi) yoki guruhni o'chiring (guruh sahifasi), keyin shikoyatni yoping.
+</p>
+<form method="get" class="filters" style="margin-bottom:14px">
+  <select name="s" onchange="this.form.submit()">
+    {% for k, label in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if s == k }}>{{ label }}{% if k == 'open' %} ({{ open_count }}){% endif %}</option>{% endfor %}
+    <option value="all" {{ 'selected' if s == 'all' }}>Hammasi</option>
+  </select>
+</form>
+<div class="card flush">
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Kim ustidan</th><th>Sabab</th><th>Shikoyatchi</th><th>Vaqt</th><th>Holat</th></tr></thead>
+    <tbody>
+    {% for r, reporter, target, group in page.items %}
+      <tr>
+        <td class="num">{{ r.id }}</td>
+        <td>
+          {% if r.target_type == 'user' %}{{ m.person(target) }}
+          {% elif group %}<a href="/admin/groups/{{ group.id }}"><b>👥 {{ group.name }}</b></a>{% if group.description %}<div class="faint small">{{ group.description }}</div>{% endif %}
+          {% else %}<span class="faint">O'chirilgan guruh</span>{% endif %}
+        </td>
+        <td><span class="badge warn">{{ REASONS.get(r.reason, r.reason) }}</span>{% if r.details %}<div class="small" style="margin-top:4px;max-width:340px">{{ r.details }}</div>{% endif %}</td>
+        <td>{{ m.person(reporter) }}</td>
+        <td class="small nowrap">{{ r.created_at|fdt }}<div class="faint">{{ r.created_at|ago }}</div></td>
+        <td>
+          {% if r.status == 'open' %}
+            <div class="row" style="gap:6px">
+              {{ m.post("/admin/reports/" ~ r.id ~ "/close", "Chora ko'rildi", csrf, cls="btn sm", fields={"status": "resolved"}) }}
+              {{ m.post("/admin/reports/" ~ r.id ~ "/close", "Rad etish", csrf, cls="btn sm ghost", fields={"status": "dismissed"}) }}
+            </div>
+          {% else %}
+            <span class="badge {{ 'ok' if r.status == 'resolved' else '' }}">{{ STATUSES.get(r.status, r.status) }}</span>
+            {% if r.resolved_at %}<div class="faint small">{{ r.resolved_at|fdt }}</div>{% endif %}
+            {% if r.resolution_note %}<div class="small">{{ r.resolution_note }}</div>{% endif %}
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="6" class="empty">Shikoyat yo'q.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {{ m.pager(page) }}
+</div>
+{% endblock %}

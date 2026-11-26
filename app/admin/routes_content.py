@@ -6,12 +6,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app import config
 from app.admin import auth
 from app.admin.web import NotFound, guard, paginate, post_guard, redirect, render
 from app.db import get_session
-from app.models import Announcement, Group, GroupInvite, GroupMember, User, utcnow
+from app.models import Announcement, Group, GroupInvite, GroupMember, Report, User, utcnow
 from app.services import announcements as ann
 from app.services import runtime_settings as rs
 
@@ -240,3 +241,50 @@ async def group_delete(group_id: int, request: Request, db: AsyncSession = Depen
     await auth.audit(db, ctx, "group.delete", target_type="group", target_id=group_id, summary=f"{name}: {reason}", commit=False)
     await db.commit()
     return redirect("/admin/groups", f"«{name}» guruhi o'chirildi.", "warn")
+
+
+# ─────────────────────────────────────────────────────────────
+#  Shikoyatlar (App Store Guideline 1.2: 24 soat ichida ko'rib chiqish)
+# ─────────────────────────────────────────────────────────────
+REPORT_REASONS = {"spam": "Spam", "abuse": "Haqorat / tahdid", "inappropriate": "Nomaqbul kontent", "other": "Boshqa"}
+REPORT_STATUSES = {"open": "Yangi", "resolved": "Chora ko'rildi", "dismissed": "Rad etildi"}
+
+
+@router.get("/reports")
+async def reports_list(request: Request, db: AsyncSession = Depends(get_session)):
+    ctx = await guard(request, db)
+    st = request.query_params.get("s", "open")
+    if st not in REPORT_STATUSES and st != "all":
+        st = "open"
+    reporter = aliased(User)
+    target = aliased(User)
+    stmt = (
+        select(Report, reporter, target, Group)
+        .join(reporter, reporter.id == Report.reporter_user_id, isouter=True)
+        .join(target, target.id == Report.target_user_id, isouter=True)
+        .join(Group, Group.id == Report.target_group_id, isouter=True)
+    )
+    if st != "all":
+        stmt = stmt.where(Report.status == st)
+    page = await paginate(db, stmt.order_by(Report.created_at.desc()), request, {"s": st})
+    open_count = await db.scalar(select(func.count(Report.id)).where(Report.status == "open")) or 0
+    return render(request, "reports.html", ctx, page=page, s=st, open_count=open_count,
+                  REASONS=REPORT_REASONS, STATUSES=REPORT_STATUSES)
+
+
+@router.post("/reports/{report_id}/close")
+async def report_close(report_id: int, request: Request, db: AsyncSession = Depends(get_session)):
+    ctx, f = await post_guard(request, db)
+    r = await db.get(Report, report_id)
+    if r is None:
+        raise NotFound("Shikoyat topilmadi.")
+    status = f.str("status", 10)
+    if status not in ("resolved", "dismissed"):
+        return redirect("/admin/reports", "Holat noto'g'ri.", "err")
+    r.status = status
+    r.resolved_at = utcnow()
+    r.resolution_note = f.str("note", 300) or None
+    await auth.audit(db, ctx, f"report.{status}", target_type="report", target_id=r.id,
+                     summary=r.resolution_note or REPORT_STATUSES[status], commit=False)
+    await db.commit()
+    return redirect("/admin/reports", f"Shikoyat #{r.id}: {REPORT_STATUSES[status]}.")

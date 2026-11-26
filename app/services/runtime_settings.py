@@ -29,6 +29,7 @@ class Spec:
 
 SPECS: list[Spec] = [
     Spec("SALES_ENABLED", "bool", "Sotuv yoqilgan", "O'chirilsa ilovada to'lov tugmasi yopiladi (promokodlar ishlayveradi).", "Sotuv", default=True),
+    Spec("APPLE_PREMIUM", "bool", "iOS'da Premium", "O'chiq bo'lsa iPhone ilovasida Premium/narx/promokod ko'rinmaydi va bepul limitlar yo'q (hammasi cheksiz).", "Sotuv", default=False),
     Spec("FREE_DAILY_PLAN_LIMIT", "int", "Kunlik rejalar", "Bepul foydalanuvchi bir kunga nechta reja qo'sha oladi.", "Bepul tarif", 0, 1000),
     Spec("FREE_HABIT_LIMIT", "int", "Odatlar", "Bepul foydalanuvchining faol odatlari soni.", "Bepul tarif", 0, 1000),
     Spec("FREE_GOAL_LIMIT", "int", "Maqsadlar", "Bepul foydalanuvchining maqsadlari soni.", "Bepul tarif", 0, 1000),

@@ -124,6 +124,8 @@ async def profile_json(db: AsyncSession, u: User) -> dict:
         "referral_link": referral_link(u),
         "referral_count": u.referral_count or 0,
         "is_premium": premium.is_premium(u),
+        # Ilova shu qiymatga qarab Premium/narx/promokod bo'limlarini ko'rsatadi yoki yashiradi.
+        "purchases_visible": premium.purchases_visible(),
         "created_at": u.created_at.isoformat() if u.created_at else None,
     }
 

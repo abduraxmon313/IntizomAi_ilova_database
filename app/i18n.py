@@ -9,6 +9,13 @@ from contextvars import ContextVar
 
 SUPPORTED = ("uz", "ru", "en")
 current_lang: ContextVar[str] = ContextVar("current_lang", default="uz")
+# So'rov yuborgan ilova platformasi (X-App-Platform: ios | android), noma'lum bo'lsa None.
+current_platform: ContextVar[str | None] = ContextVar("current_platform", default=None)
+
+
+def pick_platform(header: str | None) -> str | None:
+    p = (header or "").strip().lower()
+    return p if p in ("ios", "android") else None
 
 
 def pick_lang(header: str | None) -> str:
@@ -281,6 +288,16 @@ _M: dict[str, tuple[str, str, str]] = {
         "You've sent too many invites today ({limit}). Continue tomorrow.",
     ),
     "invite_not_found": ("Taklif topilmadi yoki eskirgan.", "Приглашение не найдено или устарело.", "Invite not found or expired."),
+    # ── Shikoyatlar ──
+    "report_self": ("O'zingiz ustingizdan shikoyat qila olmaysiz.", "Нельзя пожаловаться на себя.", "You can't report yourself."),
+    "report_target_not_found": ("Shikoyat qilinayotgan ma'lumot topilmadi.", "Объект жалобы не найден.", "The reported content was not found."),
+    "report_reason_unknown": ("Shikoyat sababi noto'g'ri.", "Неверная причина жалобы.", "Invalid report reason."),
+    # ── Sotuv ──
+    "purchases_unavailable": (
+        "Bu imkoniyat ushbu qurilmada mavjud emas.",
+        "Эта функция недоступна на этом устройстве.",
+        "This feature isn't available on this device.",
+    ),
 }
 
 
