@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.i18n import current_platform
 from app.services import runtime_settings as rs
 from app.models import Goal, Habit, Plan, Subscription, User, utcnow
 from app.security import as_utc
@@ -22,6 +23,19 @@ PLAN_TITLES = {"1m": "1 oy", "3m": "3 oy", "12m": "12 oy"}
 def is_premium(user: User) -> bool:
     until = as_utc(user.premium_until)
     return until is not None and until > utcnow()
+
+
+def purchases_visible() -> bool:
+    """Joriy so'rov yuborgan ilovada Premium sotuvi (narx, obuna, promokod) ko'rsatiladimi.
+
+    iOS'da APPLE_PREMIUM o'chiq bo'lsa — yo'q. Android va noma'lum platformada — ha.
+    """
+    return not (current_platform.get() == "ios" and not rs.get("APPLE_PREMIUM"))
+
+
+def unlimited(user: User) -> bool:
+    """Limit qo'llanmaydi: Premium foydalanuvchi yoki sotuv yopiq iOS ilovasi."""
+    return is_premium(user) or not purchases_visible()
 
 
 def days_left(user: User) -> int:
@@ -113,7 +127,7 @@ UNLIMITED = Limit(True, 0, -1)
 
 
 async def plan_limit(db: AsyncSession, user: User, on_date: date, adding: int = 1) -> Limit:
-    if is_premium(user):
+    if unlimited(user):
         return UNLIMITED
     used = await db.scalar(
         select(func.count(Plan.id)).where(Plan.user_id == user.id, Plan.plan_date == on_date)
@@ -123,7 +137,7 @@ async def plan_limit(db: AsyncSession, user: User, on_date: date, adding: int = 
 
 
 async def habit_limit(db: AsyncSession, user: User, adding: int = 1) -> Limit:
-    if is_premium(user):
+    if unlimited(user):
         return UNLIMITED
     used = await db.scalar(
         select(func.count(Habit.id)).where(Habit.user_id == user.id, Habit.archived.is_(False))
@@ -133,7 +147,7 @@ async def habit_limit(db: AsyncSession, user: User, adding: int = 1) -> Limit:
 
 
 async def goal_limit(db: AsyncSession, user: User, adding: int = 1) -> Limit:
-    if is_premium(user):
+    if unlimited(user):
         return UNLIMITED
     used = await db.scalar(select(func.count(Goal.id)).where(Goal.user_id == user.id)) or 0
     lim = rs.get("FREE_GOAL_LIMIT")
@@ -141,7 +155,7 @@ async def goal_limit(db: AsyncSession, user: User, adding: int = 1) -> Limit:
 
 
 def ai_limit_peek(user: User) -> Limit:
-    if is_premium(user):
+    if unlimited(user):
         return UNLIMITED
     used = user.ai_msgs_count if user.ai_msgs_date == today() else 0
     lim = rs.get("FREE_AI_DAILY_LIMIT")
@@ -149,7 +163,7 @@ def ai_limit_peek(user: User) -> Limit:
 
 
 def ai_consume(user: User) -> None:
-    if is_premium(user):
+    if unlimited(user):
         return
     d = today()
     if user.ai_msgs_date != d:
@@ -159,7 +173,7 @@ def ai_consume(user: User) -> None:
 
 
 def ai_refund(user: User) -> None:
-    if is_premium(user):
+    if unlimited(user):
         return
     if user.ai_msgs_date == today() and user.ai_msgs_count > 0:
         user.ai_msgs_count -= 1

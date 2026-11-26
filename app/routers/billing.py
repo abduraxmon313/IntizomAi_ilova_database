@@ -72,10 +72,23 @@ async def subscription(
 ):
     if promo_code:
         limit_action(f"promo-check:{user.id}", 20, 600)
+    visible = premium.purchases_visible()
+    if not visible:
+        # iOS'da sotuv yopiq: tariflar, to'lov usullari va limitlar qaytarilmaydi.
+        return {
+            **await _status(db, user, await premium.current_plan_key(db, user)),
+            "plans": [],
+            "providers": [],
+            "promo": None,
+            "payments_enabled": False,
+            "purchases_visible": False,
+            "free_limits": {"plans_per_day": -1, "habits": -1, "goals": -1, "ai_per_day": -1},
+        }
     cat = await billing.catalog(db, user, promo_code)
     return {
         **await _status(db, user, await premium.current_plan_key(db, user)),
         **cat,
+        "purchases_visible": True,
         "free_limits": {
             "plans_per_day": rs.get("FREE_DAILY_PLAN_LIMIT"),
             "habits": rs.get("FREE_HABIT_LIMIT"),
@@ -106,6 +119,8 @@ async def _order_json(db: AsyncSession, o: PaymentOrder, user: User | None = Non
 
 @router.post("/payments/checkout")
 async def checkout(body: CheckoutIn, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
+    if not premium.purchases_visible():
+        fail(403, "purchases_unavailable")
     if not config.BILLING_ENABLED:
         fail(503, "billing_disabled")
     if not rs.get("SALES_ENABLED"):
@@ -217,6 +232,8 @@ async def payment_status(order_id: str, user: User = Depends(onboarded_user), db
 @router.post("/promo/redeem")
 async def redeem_promo(body: PromoIn, user: User = Depends(onboarded_user), db: AsyncSession = Depends(get_session)):
     """Bepul promokod — to'lovsiz Premium kunlari. Chegirma/bonus promokodi checkout'da qo'llanadi."""
+    if not premium.purchases_visible():
+        fail(403, "purchases_unavailable")
     limit_action(f"promo:{user.id}", 10, 3600)
     try:
         days = await promos.redeem_free(db, user, body.code)

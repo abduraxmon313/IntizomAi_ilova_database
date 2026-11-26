@@ -85,6 +85,10 @@ FREE_AI_DAILY_LIMIT = _int("FREE_AI_DAILY_LIMIT", 3)
 GROUP_CREATE_PREMIUM_ONLY = _bool("GROUP_CREATE_PREMIUM_ONLY", True)
 # Guruhga qo'shilish (taklifni qabul qilish) faqat Premium uchunmi.
 GROUP_JOIN_PREMIUM_ONLY = _bool("GROUP_JOIN_PREMIUM_ONLY", True)
+# iOS'da Premium sotuvi. false (standart): iPhone ilovasida narx/obuna/promokod
+# ko'rinmaydi va bepul limitlar qo'llanmaydi (hammasi cheksiz). true: iOS ham
+# Android kabi ishlaydi. Admin panel → Sozlamalar'dan ham o'zgartirsa bo'ladi.
+APPLE_PREMIUM = _bool("APPLE_PREMIUM", False)
 
 # ── Guruhlar ────────────────────────────────────────────────────────────────
 MAX_GROUPS_PER_OWNER = _int("MAX_GROUPS_PER_OWNER", 10)

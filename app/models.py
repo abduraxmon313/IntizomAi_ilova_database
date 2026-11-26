@@ -360,6 +360,28 @@ class UserBlock(Base):
     created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
 
 
+class Report(Base):
+    """Foydalanuvchi yoki guruh ustidan shikoyat (App Store Guideline 1.2). Admin panelda ko'rib chiqiladi."""
+
+    __tablename__ = "reports"
+    __table_args__ = (Index("ix_reports_status_created", "status", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reporter_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # user | group
+    target_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    target_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    target_group_id: Mapped[int | None] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)
+    # spam | abuse | inappropriate | other
+    reason: Mapped[str] = mapped_column(String(16), nullable=False)
+    details: Mapped[str | None] = mapped_column(String(500))
+    # open | resolved | dismissed
+    status: Mapped[str] = mapped_column(String(10), default="open", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TS, default=utcnow, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(TS)
+    resolution_note: Mapped[str | None] = mapped_column(String(300))
+
+
 class AppState(Base):
     """Kichik kalit-qiymat ombori (masalan, oxirgi yakunlangan kun)."""
 
